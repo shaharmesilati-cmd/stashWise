@@ -277,45 +277,68 @@ console.log('v1.2 tests passed');
   console.log('v2.9 tests passed');
 }
 
-// v3.0 - the daily bank: unspent money rolls to the next day; spending fast never shows a scary minus
+// v3.0 - daily money: what you do not spend is saved and adds to the next days
 {
   const { dailyBank, monthSummary } = await import('../js/calc.js');
-  const S = { income: 3000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }; // November: 30 days -> 100 a day
+  const S = { income: 1200, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }; // November: 30 days -> 40 a day
   const at = d => new Date(2026, 10, d, 9);
+  const ex = (d, a) => ({ date: `2026-11-${String(d).padStart(2, '0')}`, amount: a, kind: 'expense' });
   let B = dailyBank(S, [], '2026-11', at(1));
-  assert.equal(B.base, 100); assert.equal(B.balance, 100); assert.equal(B.extra, 0); assert.equal(B.tomorrow, 200); assert.equal(B.mode, 'saved');
-  B = dailyBank(S, [], '2026-11', at(4));
-  assert.equal(B.balance, 400, 'four days without spending = four daily amounts'); assert.equal(B.extra, 300); assert.equal(B.zeroDays, 3);
-  assert.equal(B.lockable, 300, 'everything above one full day can be locked');
-  // spent 1,500 in the first days: the rolled bank would be -1,100 on day 4, but 1,500 is still left for 27 days
-  const fast = [{ date: '2026-11-02', amount: 1500, kind: 'expense' }];
-  B = dailyBank(S, fast, '2026-11', at(4));
-  assert.equal(B.mode, 'spread'); assert.equal(B.pace, -1100);
-  assert.equal(B.balance, 55.56, 'never a minus while the month still has money: 1,500 / 27 days');
-  assert.equal(B.todayBase, 55.56); assert.equal(B.lockable, 0);
-  assert.equal(B.tomorrow, 57.69, 'a day without spending raises tomorrow: 1,500 / 26');
-  // spending today more than today's amount shows a small minus for today only
-  B = dailyBank(S, [...fast, { date: '2026-11-04', amount: 80, kind: 'expense' }], '2026-11', at(4));
-  assert.equal(B.balance, -24.44); assert.equal(B.tomorrow, 54.62);
-  // back above the even pace -> rolls again
-  B = dailyBank(S, [{ date: '2026-11-02', amount: 150, kind: 'expense' }], '2026-11', at(3));
-  assert.equal(B.mode, 'saved'); assert.equal(B.balance, 150);
-  B = dailyBank(S, [{ date: '2026-11-02', amount: 60, kind: 'expense' }, { date: '2026-11-03', amount: 20, kind: 'expense' }], '2026-11', at(30));
-  assert.equal(B.balance, monthSummary(S, [{ amount: 80, date: '2026-11-02', kind: 'expense' }], '2026-11', at(30)).remaining, 'on the last day the bank equals what is left for the month');
-  assert.equal(B.tomorrow, null);
+  assert.deepEqual([B.base, B.daily, B.saved, B.morning, B.tomorrow], [40, 40, 0, 40, 80]);
+  // the owner's example: 40 today, nothing spent -> tomorrow 40 + the 40 that was saved
+  B = dailyBank(S, [], '2026-11', at(2));
+  assert.deepEqual([B.daily, B.saved, B.morning], [40, 40, 80], 'yesterday\'s 40 was saved');
+  B = dailyBank(S, [], '2026-11', at(5));
+  assert.deepEqual([B.saved, B.morning, B.zeroDays], [160, 200, 4]);
+  // spent 25 of 40 -> 15 saved
+  B = dailyBank(S, [ex(1, 25)], '2026-11', at(2));
+  assert.deepEqual([B.saved, B.morning], [15, 55]);
+  // spending today: what is left today, and tomorrow = daily + what is left today
+  B = dailyBank(S, [ex(1, 25), ex(2, 30)], '2026-11', at(2));
+  assert.deepEqual([B.balance, B.tomorrow, B.tomorrowSaved], [25, 65, 25]);
+  // spending more than today's amount takes from saved first
+  B = dailyBank(S, [ex(3, 100)], '2026-11', at(4));
+  assert.deepEqual([B.saved, B.daily, B.morning], [20, 40, 60], 'saved 80, the extra 60 came from saved');
+  // overspending beyond saved: spread over the days left, never a big minus
+  B = dailyBank(S, [ex(1, 400)], '2026-11', at(2));
+  assert.equal(B.saved, 0); assert.equal(B.daily, 27.59, '360 extra / 29 days = 12.41 less a day');
+  assert.equal(B.morning, 27.59);
+  assert.ok(Math.abs(B.saved + B.daily * B.daysLeft - monthSummary(S, [ex(1, 400)], '2026-11', at(2)).remaining) < 0.2, 'the sum matches the month');
+  // the owner's -1,500 case: never a big minus while the month still has money
+  const S2 = { ...S, income: 9000 }; // 300 a day
+  B = dailyBank(S2, [ex(1, 2600), ex(3, 1200), ex(8, 700)], '2026-11', at(12));
+  assert.ok(B.morning > 0, 'positive while money is left for the month');
+  assert.ok(Math.abs(B.saved + B.daily * B.daysLeft - monthSummary(S2, [ex(1, 2600), ex(3, 1200), ex(8, 700)], '2026-11', at(12)).remaining) < 0.3);
+  // over today's amount shows a small minus for today only, and tomorrow is recalculated
+  B = dailyBank(S, [ex(1, 70)], '2026-11', at(1));
+  assert.equal(B.balance, -30); assert.equal(B.tomorrowSaved, 0); assert.ok(B.tomorrow > 0 && B.tomorrow < 40);
+  // invariant on every day of a messy month: saved + daily x days left = what was left this morning
+  const messy = [ex(1, 10), ex(2, 95), ex(4, 0.5), ex(6, 300), ex(9, 12), ex(10, 180), ex(15, 60)];
+  for (let d = 1; d <= 30; d++) {
+    const known = messy.filter(t => +t.date.slice(8) <= d); // what was recorded by that day
+    const b = dailyBank(S, known, '2026-11', at(d)), C = monthSummary(S, known, '2026-11', at(d));
+    assert.ok(b, 'day ' + d);
+    assert.ok(Math.abs(b.saved + b.daily * b.daysLeft - (C.remaining + b.spentToday)) < 0.3, 'day ' + d);
+    assert.ok(b.morning > 0, 'day ' + d + ' positive');
+  }
+  // last day: everything left is today's
+  B = dailyBank(S, [ex(2, 60), ex(3, 20)], '2026-11', at(30));
+  assert.equal(B.balance, monthSummary(S, [ex(2, 60), ex(3, 20)], '2026-11', at(30)).remaining); assert.equal(B.tomorrow, null);
   assert.equal(dailyBank(S, [], '2026-10', at(4)), null, 'only for the current month');
   assert.equal(dailyBank({ ...S, income: 0 }, [], '2026-11', at(4)), null);
-  assert.equal(dailyBank(S, [{ date: '2026-11-02', amount: 3500, kind: 'expense' }], '2026-11', at(4)), null, 'month overspent: the month view takes over');
-  // a refunded purchase and a fixed expense do not touch the bank
-  B = dailyBank(S, [{ date: '2026-11-02', amount: 500, kind: 'expense', category: 'refund' }, { date: '2026-11-02', amount: 500, kind: 'expense', fixedId: 'f1' }], '2026-11', at(2));
-  assert.equal(B.balance, 200);
-  // locking money into the vault takes it out of the spendable number but it is not an expense
-  const L = { ...S, locks: [{ date: '2026-11-04', amount: 300 }] };
+  assert.equal(dailyBank(S, [ex(2, 1500)], '2026-11', at(4)), null, 'month overspent: the month view takes over');
+  // refunds and fixed expenses do not touch it
+  B = dailyBank(S, [{ ...ex(1, 500), category: 'refund' }, { ...ex(1, 500), fixedId: 'f1' }], '2026-11', at(2));
+  assert.equal(B.morning, 80);
+  // money moved to the vault leaves "saved" (it is not an expense)
+  const L = { ...S, locks: [{ date: '2026-11-04', amount: 100 }] };
   B = dailyBank(L, [], '2026-11', at(4));
-  assert.equal(B.balance, 100); assert.equal(B.lockedToday, 300); assert.equal(B.tomorrow, 200);
+  assert.deepEqual([B.saved, B.lockedToday, B.balance], [120, 100, 60]);
+  B = dailyBank(L, [], '2026-11', at(5));
+  assert.equal(B.saved, 60);
   const C = monthSummary(L, [], '2026-11', at(4));
-  assert.equal(C.spent, 0); assert.equal(C.locked, 300); assert.equal(C.remaining, 2700);
-  console.log('v3.0 daily bank tests passed');
+  assert.equal(C.spent, 0); assert.equal(C.locked, 100); assert.equal(C.remaining, 1100);
+  console.log('v3.0 daily money tests passed');
 }
 
 // v3.1 - bank milestones and what the app remembers about the bank

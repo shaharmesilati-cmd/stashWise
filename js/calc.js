@@ -98,46 +98,58 @@ export function monthSummary(settings, allTx, key, today = new Date()) {
 }
 
 /**
- * The daily "bank". Every day adds the same daily amount (the month's spending money / days in the month).
- * What you did not spend stays and rolls to the next day. If you spent faster than that, the bank never shows a
- * scary minus: what is left of the month is simply spread again over the days that are left.
- *   today's amount (morning) = max( rolled-over bank , month remaining / days left )
+ * The daily money, the way people think about it:
+ *   - every day has a daily amount (the month's spending money / days in the month);
+ *   - what you did not spend goes into "saved" and is yours to use on any later day:
+ *       today you can = today's daily amount + saved;
+ *   - spending more than today's amount takes from "saved" first. Only if "saved" runs out, the rest is spread
+ *     over the days that are left (the daily amount gets a little smaller) - so there is never a big scary minus.
+ * Money locked into the vault leaves "saved" the same way spending does (it is not an expense).
+ * The sum always matches the month: saved + daily x days left = what is left for the month.
  * Returns null when the month is not the current one, or there is no money left for the month.
  */
 export function dailyBank(settings, allTx, key, today = new Date()) {
   const C = monthSummary(settings, allTx, key, today);
   if (!C.isCurrent || !(C.available > 0) || C.remaining < 0) return null;
-  const base = C.available / C.total;
+  const base0 = C.available / C.total;
   const startIso = isoOf(C.start), todayIso = isoOf(new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const clamp = d => (d < startIso ? startIso : d > todayIso ? todayIso : d); // charge-month mode / future dates sit on the nearest passed day
   const byDay = {}, byLock = {};
   for (const t of C.variable) { const d = clamp(t.date); byDay[d] = (byDay[d] || 0) + t.amount; }
   for (const l of C.locks) { const d = clamp(l.date); byLock[d] = (byLock[d] || 0) + l.amount; }
   const r2 = v => Math.round(v * 100) / 100;
-  const days = []; let out = 0, zeroDays = 0; // out = everything that left the bank before this day
+  /** One day: returns the saved amount and daily amount for the next day. */
+  const close = (saved, daily, out, daysAfter) => {
+    let s = saved + daily - out;
+    if (s >= 0 || daysAfter <= 0) return { saved: s, daily };
+    return { saved: 0, daily: daily + s / daysAfter }; // s < 0: what "saved" could not cover is spread over the days after
+  };
+  const days = []; let saved = 0, daily = base0, zeroDays = 0;
   for (let i = 1; i <= C.elapsed; i++) {
     const iso = isoOf(new Date(C.start.getFullYear(), C.start.getMonth(), C.start.getDate() + i - 1));
-    const spent = byDay[iso] || 0, locked = byLock[iso] || 0;
-    const rolled = base * i - out, fair = (C.available - out) / (C.total - i + 1);
-    const allow = Math.max(rolled, fair);
-    out += spent + locked;
-    if (!spent && iso !== todayIso) zeroDays++;
-    days.push({ iso, spent: r2(spent), locked: r2(locked), allow: r2(allow), left: r2(allow - spent - locked), saved: rolled >= base - 0.005 });
+    const spent = byDay[iso] || 0, locked = byLock[iso] || 0, out = spent + locked;
+    const allow = daily + saved;
+    days.push({ iso, spent: r2(spent), locked: r2(locked), daily: r2(daily), saved: r2(saved), allow: r2(allow), left: r2(allow - out) });
+    if (iso === todayIso || i === C.elapsed) break;
+    if (!spent) zeroDays++;
+    ({ saved, daily } = close(saved, daily, out, C.total - i));
   }
-  const t = days[days.length - 1], i = C.elapsed;
-  const rolledNow = base * i - out; // can be negative: how far ahead of the even pace the spending is
-  const fairMorning = (C.available - (out - t.spent - t.locked)) / C.daysLeft;
-  const tomorrow = C.daysLeft > 1 ? Math.max(rolledNow + base, C.remaining / (C.daysLeft - 1)) : null;
+  const t = days[days.length - 1];
+  const next = C.daysLeft > 1 ? close(saved, daily, t.spent + t.locked, C.daysLeft - 1) : null;
   return {
-    base: r2(base), morning: t.allow, balance: t.left, spentToday: t.spent, lockedToday: t.locked,
-    mode: t.saved ? 'saved' : 'spread',              // saved: ahead, money piled up. spread: the rest of the month re-spread
-    todayBase: r2(t.saved ? base : fairMorning),     // today's own daily amount
-    extra: r2(t.saved ? t.allow - base : 0),         // what rolled over from earlier days
-    lockable: Math.max(0, Math.floor(t.left - base)),// what can go to the vault and still leave one full day
-    pace: r2(rolledNow), tomorrow: tomorrow == null ? null : r2(tomorrow),
-    zeroDays, days, daysLeft: C.daysLeft, day: i, total: C.total, remaining: r2(C.remaining), maxEnd: r2(C.remaining),
+    base: r2(base0),                 // the daily amount at the start of the month
+    daily: t.daily,                  // today's daily amount (smaller than base only after overspending)
+    saved: t.saved,                  // saved from earlier days, before today
+    morning: t.allow,                // today you can = daily + saved
+    spentToday: t.spent, lockedToday: t.locked,
+    balance: t.left,                 // still possible today (negative = over today's amount)
+    tomorrow: next ? r2(next.saved + next.daily) : null,
+    tomorrowSaved: next ? r2(next.saved) : null, tomorrowDaily: next ? r2(next.daily) : null,
+    lockable: Math.max(0, Math.floor(t.saved)),
+    zeroDays, days, daysLeft: C.daysLeft, day: C.elapsed, total: C.total, remaining: r2(C.remaining), maxEnd: r2(C.remaining),
   };
 }
+
 const BANK_STEPS = [250, 500, 1000, 1500, 2000, 3000, 4000, 5000, 7500, 10000, 15000, 20000, 30000, 50000];
 /** The next round number the bank can reach, and how far along it is. */
 export function bankMilestone(balance, maxEnd, base) {
