@@ -605,18 +605,23 @@ button.ring-wrap:active { transform: scale(.98); }
 .t-bar { position: relative; display: block; width: 100%; height: 8px; margin: 6px 0 2px; border-radius: 999px; background: #EDF1F6; }
 .t-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2CC5D2, #22B573); transition: width .8s var(--out); }
 .t-bar em { position: absolute; top: -3px; bottom: -3px; width: 3px; border-radius: 3px; background: var(--ink); opacity: .5; }
-.mtile.save-tile { background: linear-gradient(160deg, #FFFFFF 40%, #FFF1F2 100%); padding-top: 82px; }
-.piggy { position: absolute; top: 4px; inset-inline-start: 50%; transform: translateX(50%); width: 92px; height: 92px; pointer-events: none; }
-[dir="ltr"] .piggy { transform: translateX(-50%); }
-.piggy.static { display: grid; place-items: center; font-size: 2.6rem; color: #F28B9A; }
-.piggy.big { position: static; transform: none; width: 112px; height: 112px; flex: none; }
-.vault-big { display: flex; align-items: center; gap: 12px; } .vault-big > div { display: flex; flex-direction: column; } .vault-big b { font-size: 2rem; font-weight: 800; }
-.wish-bar { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; } .wish-bar span:first-child { font-weight: 700; } .wish-bar small { color: var(--muted); }
+.mtile.save-tile { background: linear-gradient(165deg, #FFFFFF 35%, #FFF6DC 100%); padding-top: 92px; }
+.coins { position: absolute; top: 6px; inset-inline: 0; margin: 0 auto; width: 100px; height: 92px; pointer-events: none; }
+.coins svg { filter: drop-shadow(0 6px 8px rgba(201, 143, 14, .22)); }
+.coins.static { display: grid; place-items: center; font-size: 2.4rem; color: #F6B829; }
+.coins.big { position: static; width: 110px; height: 104px; flex: none; }
+.vault-big { display: flex; align-items: center; gap: 14px; } .vault-big > div { display: flex; flex-direction: column; } .vault-big b { font-size: 2rem; font-weight: 800; }
+.more-save { display: flex; flex-direction: column; gap: 6px; }
+.ms-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 16px; background: var(--surface-2); }
+.ms-row span { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 600; } .ms-row b { font-size: 1.15rem; direction: ltr; }
+.ms-row.best { background: #FFF6DC; } .ms-row.best span, .ms-row.best b { color: var(--gold-ink); }
+.ms-row.soft b { color: var(--good); }
+.why-note.soft { color: var(--muted); background: var(--surface-2); }
 .why-note.good { color: var(--good); background: var(--green-soft); }
 .vl-list { display: flex; flex-direction: column; gap: 6px; }
 .vl-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; } .vl-row span { color: var(--muted); }
 .nc-inline { display: flex; gap: 8px; align-items: center; margin-top: 8px; } .nc-inline input { flex: 1; min-width: 0; }
-@media (max-width: 370px) { .mtile .t-big { font-size: 1.4rem; } .mtile { padding: 14px; } .piggy { width: 80px; height: 80px; } .save-tile { padding-top: 74px; } }
+@media (max-width: 370px) { .mtile .t-big { font-size: 1.4rem; } .mtile { padding: 14px; } .coins { width: 86px; height: 80px; } .mtile.save-tile { padding-top: 82px; } }
 
 /* "how is the number calculated" sheet */
 .eqs { display: flex; flex-direction: column; gap: 8px; }

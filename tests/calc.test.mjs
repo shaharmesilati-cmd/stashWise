@@ -406,3 +406,31 @@ console.log('v1.2 tests passed');
   assert.deepEqual(d.map(x => x.keep.id + '>' + x.drop.id).sort(), ['a>d', 'b>e', 'c>f']);
   console.log('v3.3 saved duplicates tests passed');
 }
+
+// v3.4 - a salary that changes a little every month
+{
+  const { incomeOf, monthSummary } = await import('../js/calc.js');
+  const S = { income: 10000, startDay: 1, savings: { mode: 'percent', value: 10 }, fixed: [], categories: [] };
+  const sal = (m, a, extra = {}) => ({ date: `2026-${m}-02`, amount: a, kind: 'income', merchant: 'משכורת', ...extra });
+  // no history: the salary typed in the budget screen
+  assert.deepEqual(incomeOf(S, [], '2026-11'), { income: 10000, source: 'planned', estimate: 10000 });
+  // history, salary not here yet: the lowest of the last 3 months
+  const hist = [sal('08', 11800), sal('09', 12400), sal('10', 12100)];
+  let r = incomeOf(S, hist, '2026-11');
+  assert.deepEqual([r.income, r.source], [11800, 'estimate']);
+  // a small transfer before the salary is added on top, not taken as the salary
+  r = incomeOf(S, [...hist, { date: '2026-11-01', amount: 150, kind: 'income', merchant: 'bit' }], '2026-11');
+  assert.deepEqual([r.income, r.source], [11950, 'estimate']);
+  // the salary arrived: exactly what came in, higher or lower than usual
+  r = incomeOf(S, [...hist, sal('11', 12650)], '2026-11');
+  assert.deepEqual([r.income, r.source], [12650, 'actual']);
+  r = incomeOf(S, [...hist, sal('11', 11200)], '2026-11');
+  assert.deepEqual([r.income, r.source], [11200, 'actual'], 'a lower salary is not hidden by the usual one');
+  // a salary slip counts as arrived even when it is small
+  r = incomeOf(S, [...hist, sal('11', 3000, { source: 'payslip' })], '2026-11');
+  assert.equal(r.source, 'actual');
+  // savings in percent follow the salary
+  const C = monthSummary(S, [...hist, sal('11', 12650)], '2026-11', new Date(2026, 10, 5));
+  assert.equal(C.savings, 1265); assert.equal(C.incomeSource, 'actual');
+  console.log('v3.4 changing salary tests passed');
+}

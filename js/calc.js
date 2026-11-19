@@ -40,8 +40,28 @@ export const isCounted = t => !t.ignored && t.kind !== 'income' && t.kind !== 'c
 const sum = (list, f = t => t.amount) => list.reduce((a, t) => a + (Number(f(t)) || 0), 0);
 
 /**
+ * The salary a month is built on. Salaries change a little every month, so:
+ *   - once this month's salary is known (a salary slip, or income of at least half the usual salary), it is used as is;
+ *   - before that, the estimate is the LOWEST salary of the last 3 months (so there is never a nasty surprise),
+ *     plus any smaller income that already came in. When the real salary arrives and it is higher,
+ *     the extra is simply added to the days that are left.
+ *   - with no history yet, the salary typed in the budget screen is used.
+ * Returns { income, source: 'actual' | 'estimate' | 'planned', estimate }.
+ */
+export function incomeOf(settings, allTx, key) {
+  const incomeIn = k => allTx.filter(t => t.kind === 'income' && !t.ignored && t.date && txKey(t, settings) === k);
+  const planned = Number(settings.income) || 0;
+  const past = [1, 2, 3].map(n => sum(incomeIn(shiftKey(key, -n)))).filter(v => v > 0);
+  const estimate = past.length ? Math.min(...past) : planned;
+  const now = incomeIn(key), actual = sum(now);
+  const arrived = now.some(t => t.source === 'payslip') || (estimate > 0 ? now.some(t => t.amount >= estimate * 0.5) : actual > 0);
+  if (arrived) return { income: actual, source: 'actual', estimate };
+  return { income: estimate + actual, source: past.length ? 'estimate' : 'planned', estimate };
+}
+
+/**
  * Everything the screens need about one budget month.
- * income  = the larger of planned income and income actually recorded in the month
+ * income  = this month's salary (see incomeOf)
  * remaining = income - fixed - savings - variable spending
  */
 export function monthSummary(settings, allTx, key, today = new Date()) {
@@ -51,7 +71,7 @@ export function monthSummary(settings, allTx, key, today = new Date()) {
   const variable = counted.filter(t => !t.fixedId);
   const actualIncome = sum(inPeriod.filter(t => t.kind === 'income' && !t.ignored));
   const plannedIncome = Number(settings.income) || 0;
-  const income = Math.max(plannedIncome, actualIncome);
+  const inc = incomeOf(settings, allTx, key), income = inc.income;
   const fixedTotal = sum(settings.fixed || []);
   const savings = savingsAmount(settings, income);
   const available = income - fixedTotal - savings;
@@ -91,7 +111,7 @@ export function monthSummary(settings, allTx, key, today = new Date()) {
   const refunded = sum(back.filter(t => t.amount > 0));
 
   return {
-    key, inPeriod, variable, plannedIncome, actualIncome, income, fixedTotal, savings, available, spent, remaining, locked, locks,
+    key, inPeriod, variable, plannedIncome, actualIncome, income, incomeSource: inc.source, incomeEstimate: inc.estimate, fixedTotal, savings, available, spent, remaining, locked, locks,
     start, end, total, elapsed, daysLeft, daily, weekly, expectedByNow, status, isCurrent, projectedEnd,
     byCat, allocated, unallocated: available - allocated, fixedSeen, refunded, refundCount: back.length,
   };

@@ -12,7 +12,7 @@ function summaryHTML() {
   const C = monthSummary(state.settings, state.tx, nowKey());
   const un = C.unallocated;
   return `<div class="sumgrid">
-      <div class="stat"><span>${C.actualIncome > C.plannedIncome ? 'הכנסה בפועל החודש' : 'הכנסה'}</span><b>${money(C.income)}</b></div>
+      <div class="stat"><span>${C.incomeSource === 'actual' ? 'המשכורת שנכנסה החודש' : C.incomeSource === 'estimate' ? 'משכורת משוערת' : 'הכנסה'}</span><b>${money(C.income)}</b></div>
       <div class="stat"><span>קבועות</span><b>${money(C.fixedTotal)}</b></div>
       <div class="stat"><span>חיסכון</span><b>${money(C.savings)}</b></div>
       <div class="stat hl"><span>פנוי להוצאות</span><b>${money(C.available)}</b></div></div>
@@ -42,7 +42,8 @@ export function render(el) {
   el.innerHTML = `
   <section class="card"><div class="card-h"><h2>${ic('hand-coins')} הכנסה</h2></div>
     <div class="row2">
-      <div class="field"><label for="bd-inc">הכנסה חודשית נטו (₪)</label><input id="bd-inc" type="number" inputmode="decimal" value="${S.income || ''}" placeholder="למשל 12000"></div>
+      <div class="field"><label for="bd-inc">משכורת רגילה נטו (₪)</label><input id="bd-inc" type="number" inputmode="decimal" value="${S.income || ''}" placeholder="למשל 12000"></div>
+      <p class="hint" style="grid-column:1/-1">${ic('info')}כל חודש מחושב לפי המשכורת שנכנסה בו. עד שהיא נכנסת, לפי הנמוכה מ-3 החודשים האחרונים, וכשמגיעה משכורת גבוהה יותר, ההפרש מתווסף לימים שנשארו.</p>
       <div class="field"><label for="bd-sd">חודש התקציב מתחיל ב-</label><select id="bd-sd">${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}" ${S.startDay === i + 1 ? 'selected' : ''}>${i + 1} לחודש</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label for="bd-bc">קנייה באשראי נספרת</label><select id="bd-bc">
         <option value="0" ${S.byCharge ? '' : 'selected'}>בחודש שבו קניתי</option>
