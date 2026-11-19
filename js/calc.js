@@ -31,8 +31,12 @@ export const isRefund = t => t.category === REFUND && t.kind !== 'income' && t.k
 /** A credit-card purchase (it is paid on next month's charge day). */
 export const isCardTx = t => t.kind === 'expense' && (/^\d{4}$/.test(t.card || '') || ['shots', 'card', 'pdf', 'paste'].includes(t.source));
 /** The budget month a transaction counts in. With "byCharge", card purchases count when the card is charged. */
+/** A salary-size income (or a salary slip). It funds the month it arrives for, even if it came a few days early. */
+export const isSalary = (t, settings = {}) => t.kind === 'income' && (t.source === 'payslip' || Number(t.amount) >= Math.max(1500, (Number(settings.income) || 0) * 0.4));
 export function txKey(t, settings = {}) {
   const sd = settings.startDay || 1;
+  // the salary of the 1st sometimes lands on the 28th-31st (weekends, holidays): it still belongs to the month it is for
+  if (t.date && isSalary(t, settings)) { const d = new Date(t.date + 'T12:00'); d.setDate(d.getDate() + 5); return budgetKeyOf(isoOf(d), sd); }
   if (settings.byCharge && isCardTx(t)) return t.chargeDate ? budgetKeyOf(t.chargeDate, sd) : shiftKey(budgetKeyOf(t.date, sd), 1);
   return budgetKeyOf(t.date, sd);
 }

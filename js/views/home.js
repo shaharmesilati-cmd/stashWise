@@ -5,7 +5,7 @@ import { state, catById, upsertTx, persist, changed, addCategory } from '../stor
 import { monthSummary, shiftKey, normMerchant, dailyBank, isoOf } from '../calc.js';
 import { $, $$, esc, ic, money, fmt0, MONTHS, openSheet, toast, shortDate } from '../util.js';
 import { txRow, catIcon } from './parts.js';
-import { monthInsights, needsCategory, isGenericMerchant } from '../insights.js';
+import { monthInsights, needsCategory, isGenericMerchant, catBreakdown } from '../insights.js';
 import { sameBusiness } from '../categorize.js';
 
 function greeting() {
@@ -23,7 +23,7 @@ export function render(el) {
 
 
   // first run: just the three steps
-  if (!S.income && !state.tx.length && !S.fixed.length && !S.goals.length && !S.categories.some(c => c.budget > 0)) {
+  if (!S.income && !state.tx.length && !S.fixed.length && !S.goals.length && true) {
     parts.push(`<section class="card welcome"><span class="w-ic">${ic('wallet')}</span><h2>ברוך הבא ל-Stashwise</h2>
       <p>שני צעדים ואתה רואה כמה מותר להוציא היום, בלי לחשוב.</p>
       <a class="btn primary wide" href="#budget">${ic('hand-coins')}1. כמה נכנס לי בחודש</a>
@@ -87,12 +87,13 @@ export function render(el) {
     </section>`);
   }
 
-  // top categories (compact)
-  const cats = S.categories.filter(c => c.budget > 0 || C.byCat[c.id])
-    .map(c => ({ c, sp: C.byCat[c.id] || 0 })).sort((a, b) => (b.c.budget ? b.sp / b.c.budget : 2) - (a.c.budget ? a.sp / a.c.budget : 2) || b.sp - a.sp);
-  if (cats.length) {
-    parts.push(`<section class="card"><div class="card-h"><h2>הקטגוריות שלך</h2><button class="link" id="all-cats" type="button">הכל (${cats.length})</button></div>
-      <div class="cats">${cats.slice(0, 4).map(catLine).join('')}</div></section>`);
+  // where the money goes: biggest categories first
+  const CB = catBreakdown(S, state.tx, key);
+  const cats = CB.rows;
+  if (CB.total > 0) {
+    parts.push(`<section class="card spend"><div class="card-h"><h2>לאן הולך הכסף</h2><button class="link" id="all-cats" type="button">הכל (${cats.filter(r => r.sp > 0).length})</button></div>
+      ${spendBar(CB)}
+      <div class="sp-list">${cats.filter(r => r.sp > 0).slice(0, 5).map(r => spendRow(r, cats[0].sp, CB.isCurrent)).join('')}</div></section>`);
   }
 
   // last purchases
@@ -241,16 +242,35 @@ function openVault(B, C) {
   });
 }
 
-function catLine({ c, sp }) {
-  const pct = c.budget ? sp / c.budget : 0, left = c.budget - sp;
-  const cls = !c.budget ? 'nobudget' : pct >= 1 ? 'bad' : pct >= .8 ? 'warn' : '';
-  return `<div class="cat-line" role="button" tabindex="0" data-catd="${esc(c.id)}">${catIcon(c)}
-    <div class="cl-mid"><div class="cl-top"><span class="cl-n">${esc(c.name)}</span>
-      <span class="cl-v ${left < 0 ? 't-bad' : pct >= .8 ? 't-warn' : ''}">${c.budget ? (left < 0 ? 'חריגה ' + money(-left) : 'נשאר ' + money(left)) : money(sp)}</span></div>
-      <div class="bar ${cls}"><i style="width:${Math.min(100, pct * 100).toFixed(1)}%;--c:${c.color}"></i></div></div></div>`;
+/** One bar made of all the categories, in their colors: the whole month at a glance. */
+function spendBar(CB) {
+  const top = CB.rows.filter(r => r.sp > 0), main = top.slice(0, 6), rest = top.slice(6).reduce((a, r) => a + r.sp, 0);
+  return `<div class="sp-bar" role="img" aria-label="חלוקת ההוצאות לפי קטגוריה">${main.map((r, i) => `<i style="width:${(r.sp / CB.total * 100).toFixed(2)}%;background:${r.c.color};--i:${i}"></i>`).join('')}${rest > 0 ? `<i style="width:${(rest / CB.total * 100).toFixed(2)}%;background:#D5DCE6;--i:6"></i>` : ''}</div>`;
 }
+/** Change vs the same point last month: up in soft orange, down in green. Small changes are not shown. */
+function deltaChip(r) {
+  if (!r.prev) return r.sp > 0 ? '<span class="dl new">חדש</span>' : '';
+  if (Math.abs(r.delta) < Math.max(20, r.prev * 0.08)) return '<span class="dl same">כמו קודם</span>';
+  return `<span class="dl ${r.delta > 0 ? 'up' : 'down'}">${ic(r.delta > 0 ? 'arrow-up' : 'arrow-down')}${money(Math.abs(r.delta))}</span>`;
+}
+function spendRow(r, max, cur, full = false) {
+  return `<button type="button" class="sp-row" data-catd="${esc(r.c.id)}" aria-label="${esc(r.c.name)}: ${fmt0(r.sp)} שקלים">${catIcon(r.c)}
+    <span class="sp-mid"><span class="sp-top"><b class="sp-n">${esc(r.c.name)}</b><b class="sp-v num">${money(r.sp)}</b></span>
+      <span class="sp-line"><i style="width:${max > 0 ? Math.max(2, r.sp / max * 100).toFixed(1) : 0}%;background:${r.c.color}"></i></span>
+      <span class="sp-meta"><span>${Math.round(r.share * 100)}%${full && r.count ? ` · ${r.count === 1 ? "קנייה אחת" : r.count + " קניות"}` : ""}${full && r.avg ? ` · ממוצע ${money(r.avg)}` : ''}</span>${deltaChip(r)}</span></span></button>`;
+}
+function openAllCats() {
+  const S = state.settings, key = state.ui.curKey, CB = catBreakdown(S, state.tx, key), max = CB.rows[0] ? CB.rows[0].sp : 0;
+  openSheet('לאן הולך הכסף', `<div class="sp-head"><b class="num">${money(CB.total)}</b><small class="muted">הוצאות משתנות · ${monthLabel(key)}</small></div>
+    ${spendBar(CB)}
+    <div class="sp-list">${CB.rows.map(r => spendRow(r, max, CB.isCurrent, true)).join('')}</div>
+    ${CB.fixed ? `<div class="sp-fixed"><span>${ic('calendar')}הוצאות קבועות</span><b class="num">${money(CB.fixed)}</b></div>` : ''}
+    <p class="hint">${CB.isCurrent ? 'החצים: מול אותה נקודה בחודש שעבר.' : 'החצים: מול החודש שלפניו.'} לחיצה על קטגוריה מראה את הקניות ואת חצי השנה האחרונה.</p>`, (sh, close) => {
+    $$('[data-catd]', sh).forEach(b => b.onclick = () => { close(); setTimeout(() => openCategory(b.dataset.catd), 220); });
+  });
+}
+const monthLabel = k => `${MONTHS[+k.slice(5) - 1]} ${k.slice(0, 4)}`;
 
-/** Exactly one card: the most useful thing to do right now. */
 function nextStep(S, C, key) {
   const pend = needsCategory(S, state.tx, key);
   if (pend.length) {
@@ -265,16 +285,13 @@ function nextStep(S, C, key) {
       <div class="chips">${quick.map(c => `<button type="button" class="qchip" data-cat="${esc(c.id)}" style="--c:${c.color}">${ic(c.icon)}${esc(c.name)}</button>`).join('')}
         <button type="button" class="qchip more" data-more="1">${ic('dots')}כל הקטגוריות</button><button type="button" class="qchip keep" data-keep="1">דלג</button></div></section>`;
   }
-  const hasSlip = C.inPeriod.some(t => t.kind === 'income' && t.source === 'payslip');
+  const hasSlip = C.incomeSource === 'actual'; // the salary of this month already came in (slip or bank)
   if (C.isCurrent && !hasSlip && new Date().getDate() >= 5)
     return `<section class="card next slip"><div class="nx-h"><span class="nx-ic">${ic('hand-coins')}</span><b>הגיע תלוש המשכורת?</b></div><a class="btn small gold" href="#add" data-go="payslip">${ic('scan')}העלאת תלוש</a></section>`;
   const days = S.lastBackup ? (Date.now() - S.lastBackup) / 86400000 : Infinity;
   if (state.tx.length >= 5 && days >= 7)
     return `<section class="card next backup"><div class="nx-h"><span class="nx-ic">${ic('shield')}</span><b>${S.lastBackup ? `עברו ${Math.floor(days)} ימים מהגיבוי האחרון` : 'עוד לא גיבית'}</b></div>
       <p>הנתונים נשמרים רק בטלפון. גיבוי לדרייב או ל-iCloud שומר עליהם גם אם הטלפון יוחלף או שהדפדפן ימחק אותם.</p><a class="btn small primary" href="#more">${ic('download')}לגבות עכשיו</a></section>`;
-  const over = S.categories.map(c => ({ c, sp: C.byCat[c.id] || 0 })).filter(x => x.c.budget > 0 && x.sp > x.c.budget).sort((a, b) => (b.sp - b.c.budget) - (a.sp - a.c.budget))[0];
-  if (over) return `<section class="card next warnc"><div class="nx-h"><span class="nx-ic">${ic('warning')}</span><b>"${esc(over.c.name)}" עבר את התקציב</b></div>
-      <p>חריגה של ${money(over.sp - over.c.budget)}. אפשר להעביר תקציב מקטגוריה אחרת, או לעצור כאן עד סוף החודש.</p><a class="btn small" href="#budget">${ic('sliders')}לעדכן תקציב</a></section>`;
   const I = monthInsights(S, state.tx, key);
   const good = I.list.find(x => x.tone === 'good' || x.tone === 'tip');
   if (good) return `<section class="card next goodc"><div class="nx-h"><span class="nx-ic">${ic(good.icon)}</span><b>${good.tone === 'tip' ? 'רעיון לחיסכון' : 'יפה מאוד'}</b></div><p>${esc(good.text)}</p></section>`;
@@ -317,7 +334,7 @@ function wire(el, cats) {
   });
   bindCats(el);
   const all = $('#all-cats', el);
-  if (all) all.onclick = () => openSheet('כל הקטגוריות', `<div class="cats">${cats.map(catLine).join('')}</div>`, sh => bindCats(sh));
+  if (all) all.onclick = () => openAllCats();
   const go = $('[data-go="payslip"]', el);
   if (go) go.onclick = () => { state.ui.addMode = 'payslip'; };
   const dep = $('#dep', el);
@@ -362,11 +379,16 @@ function countUp(el) {
 }
 
 function openCategory(id) {
-  const c = catById(id), C = monthSummary(state.settings, state.tx, state.ui.curKey);
-  const list = C.variable.filter(t => (t.category || 'other') === c.id).sort((a, b) => b.date.localeCompare(a.date));
+  const S = state.settings, c = catById(id), key = state.ui.curKey, C = monthSummary(S, state.tx, key);
+  const known = new Set(S.categories.map(x => x.id)), catOf = t => (t.category && known.has(t.category) ? t.category : 'other');
+  const list = C.variable.filter(t => catOf(t) === c.id).sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
   const sp = list.reduce((a, t) => a + t.amount, 0);
-  openSheet(c.name, `<div class="cat-head">${catIcon(c)}<div><b>${money(sp)}</b><span class="muted"> ${c.budget ? `מתוך ${money(c.budget)}` : 'ללא תקציב'} · ${list.length} קניות</span></div></div>
-    ${c.budget ? `<div class="bar ${sp > c.budget ? 'bad' : sp > c.budget * .8 ? 'warn' : ''}"><i style="width:${Math.min(100, sp / c.budget * 100).toFixed(1)}%;--c:${c.color}"></i></div>` : ''}
+  const keys = Array.from({ length: 6 }, (_, i) => shiftKey(key, i - 5));
+  const hist = keys.map(k => ({ k, v: monthSummary(S, state.tx, k).variable.filter(t => catOf(t) === c.id).reduce((a, t) => a + t.amount, 0) }));
+  const past = hist.slice(0, 5).filter(h => h.v > 0), avg = past.length ? past.reduce((a, h) => a + h.v, 0) / past.length : 0, top = Math.max(...hist.map(h => h.v), 1);
+  openSheet(c.name, `<div class="cat-head">${catIcon(c)}<div><b class="num">${money(sp)}</b><span class="muted"> · ${list.length === 1 ? "קנייה אחת" : list.length + " קניות"}</span></div></div>
+    ${past.length ? `<div class="cat-months">${hist.map((h, i) => `<div class="cm ${h.k === key ? 'cur' : ''}"><span class="cm-v num">${h.v ? fmt0(h.v) : ''}</span><span class="cm-bar"><i style="height:${Math.max(h.v ? 4 : 0, h.v / top * 100).toFixed(0)}%;background:${c.color};--i:${i}"></i></span><span class="cm-l">${MONTHS[+h.k.slice(5) - 1].slice(0, 3)}</span></div>`).join('')}</div>
+      <p class="hint">בממוצע ${money(avg)} בחודש</p>` : ''}
     <div class="tx-list">${list.map(txRow).join('') || '<p class="muted">אין קניות בקטגוריה הזו החודש.</p>'}</div>`, (sh, close) => {
     sh.addEventListener('click', e => { if (e.target.closest('[data-tx]')) close(); }, true);
   });

@@ -434,3 +434,46 @@ console.log('v1.2 tests passed');
   assert.equal(C.savings, 1265); assert.equal(C.incomeSource, 'actual');
   console.log('v3.4 changing salary tests passed');
 }
+
+// v3.5 - the salary of the 1st funds the month it arrives for
+{
+  const { incomeOf, txKey, monthSummary } = await import('../js/calc.js');
+  const S = { income: 18000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] };
+  const sal = (date, a, extra = {}) => ({ date, amount: a, kind: 'income', merchant: 'משכורת', ...extra });
+  // 1.10: 18,000 -> October is built on it (not September)
+  assert.equal(txKey(sal('2026-10-01', 18000), S), '2026-10');
+  assert.equal(incomeOf(S, [sal('2026-10-01', 18000)], '2026-10').income, 18000);
+  assert.equal(incomeOf(S, [sal('2026-10-01', 18000)], '2026-09').source, 'planned', 'September does not get it');
+  // the 1st was a Saturday, the salary came on 29.9: still October's
+  assert.equal(txKey(sal('2026-09-29', 17600), S), '2026-10');
+  const r = incomeOf(S, [sal('2026-09-29', 17600)], '2026-10');
+  assert.deepEqual([r.income, r.source], [17600, 'actual']);
+  // a small transfer at the end of the month stays in its own month
+  assert.equal(txKey({ date: '2026-09-29', amount: 200, kind: 'income', merchant: 'bit' }, S), '2026-09');
+  // a salary slip is always treated as the salary
+  assert.equal(txKey(sal('2026-09-30', 900, { source: 'payslip' }), S), '2026-10');
+  // expenses are not moved
+  assert.equal(txKey({ date: '2026-09-29', amount: 20000, kind: 'expense' }, S), '2026-09');
+  assert.equal(monthSummary(S, [sal('2026-09-29', 17600)], '2026-10', new Date(2026, 9, 5)).income, 17600);
+  console.log('v3.5 salary of the 1st tests passed');
+}
+
+// v3.6 - where the money goes, by category
+{
+  const { catBreakdown } = await import('../js/insights.js');
+  const S = { income: 10000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [{ amount: 3000 }], categories: [{ id: 'super', name: 'סופר' }, { id: 'food', name: 'אוכל' }, { id: 'u1', name: 'כרטיס נטען' }, { id: 'other', name: 'שונות' }] };
+  const ex = (d, a, c) => ({ date: d, amount: a, kind: 'expense', category: c });
+  const tx = [ex('2026-11-02', 400, 'super'), ex('2026-11-05', 175, 'u1'), ex('2026-11-06', 90, 'food'), ex('2026-11-07', 30, 'gone'),
+    ex('2026-10-03', 300, 'super'), ex('2026-10-20', 500, 'super'), ex('2026-10-04', 120, 'food')];
+  const B = catBreakdown(S, tx, '2026-11', new Date(2026, 10, 10, 9));
+  assert.deepEqual(B.rows.map(r => r.c.id), ['super', 'u1', 'food', 'other'], 'biggest first, the user\'s own category included, a deleted category counts as שונות');
+  assert.equal(B.total, 695); assert.equal(Math.round(B.rows[0].share * 100), 58);
+  assert.equal(B.rows[0].prev, 300, 'compared with the same point last month (the 20.10 purchase is later)');
+  assert.equal(B.rows[0].delta, 100); assert.equal(B.rows[1].delta, 175);
+  assert.equal(B.rows[0].avg, 267, 'average of the 3 months before');
+  assert.equal(B.fixed, 3000);
+  // a past month is compared with the whole month before
+  const P = catBreakdown(S, tx, '2026-10', new Date(2026, 10, 10, 9));
+  assert.equal(P.rows[0].sp, 800);
+  console.log('v3.6 category breakdown tests passed');
+}

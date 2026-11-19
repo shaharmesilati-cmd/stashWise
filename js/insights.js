@@ -20,11 +20,6 @@ export function monthInsights(settings, tx, key, today = new Date()) {
   const out = [];
   if (!C.variable.length) return { list: out, stats: null };
 
-  // over budget categories
-  for (const c of settings.categories) {
-    const sp = C.byCat[c.id] || 0;
-    if (c.budget > 0 && sp > c.budget) out.push({ tone: 'alert', icon: 'flame', text: `ב"${c.name}" עברת את התקציב ב-₪${Math.round(sp - c.budget).toLocaleString('he-IL')}.` });
-  }
 
   // compared with last month, same point in the month
   const elapsed = C.isCurrent ? C.elapsed : C.total;
@@ -107,3 +102,27 @@ export function budgetStreak(settings, tx, today = new Date()) {
   return n;
 }
 function budgetKeyOfLocal(iso, sd) { const [y, m, dd] = iso.split('-').map(Number); const t = dd >= sd ? new Date(y, m - 1, 1) : new Date(y, m - 2, 1); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`; }
+
+/**
+ * Where the money goes, by category (also the ones the user added), biggest first.
+ * For each: this month, share of the month, the same point last month (so a half month is compared with a half month),
+ * and the average of the 3 full months before. No budgets, no "over" - just where the money is.
+ */
+export function catBreakdown(settings, tx, key, today = new Date()) {
+  const C = monthSummary(settings, tx, key, today), P = monthSummary(settings, tx, shiftKey(key, -1), today);
+  const known = new Set((settings.categories || []).map(c => c.id));
+  const catOf = t => (t.category && known.has(t.category) ? t.category : 'other');
+  const day = d => Math.round((new Date(d + 'T12:00') - P.start) / 864e5); // day index inside last month
+  const sumBy = (list, f = () => true) => { const o = {}; for (const t of list) if (f(t)) o[catOf(t)] = (o[catOf(t)] || 0) + t.amount; return o; };
+  const now = sumBy(C.variable), cnt = {};
+  for (const t of C.variable) cnt[catOf(t)] = (cnt[catOf(t)] || 0) + 1;
+  const prevSame = sumBy(P.variable, t => !C.isCurrent || day(t.date) < C.elapsed);
+  const avgs = {};
+  for (let n = 1; n <= 3; n++) { const M = monthSummary(settings, tx, shiftKey(key, -n), today); for (const [k, v] of Object.entries(sumBy(M.variable))) avgs[k] = (avgs[k] || 0) + v / 3; }
+  const total = Object.values(now).reduce((a, v) => a + Math.max(0, v), 0);
+  const rows = (settings.categories || []).filter(c => c.id !== 'refund').map(c => ({
+    c, sp: Math.max(0, now[c.id] || 0), count: cnt[c.id] || 0, prev: Math.max(0, prevSame[c.id] || 0), avg: Math.round(avgs[c.id] || 0),
+  })).filter(r => r.sp > 0 || r.prev > 0).sort((a, b) => b.sp - a.sp || b.prev - a.prev);
+  for (const r of rows) { r.share = total ? r.sp / total : 0; r.delta = r.sp - r.prev; }
+  return { rows, total, fixed: C.fixedTotal, isCurrent: C.isCurrent };
+}

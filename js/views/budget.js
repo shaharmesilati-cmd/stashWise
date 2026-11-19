@@ -1,5 +1,5 @@
 import { state, persist, changed, CAT_COLORS, CAT_ICONS, addCategory } from '../store.js';
-import { monthSummary, autoSplit, budgetKeyOf, isoOf } from '../calc.js';
+import { monthSummary, budgetKeyOf, isoOf } from '../calc.js';
 import { $, $$, esc, ic, money, num, uid, toast, armConfirm, fmt0 } from '../util.js';
 import { catIcon } from './parts.js';
 
@@ -10,16 +10,13 @@ const nowKey = () => budgetKeyOf(isoOf(new Date()), state.settings.startDay);
 
 function summaryHTML() {
   const C = monthSummary(state.settings, state.tx, nowKey());
-  const un = C.unallocated;
   return `<div class="sumgrid">
       <div class="stat"><span>${C.incomeSource === 'actual' ? 'המשכורת שנכנסה החודש' : C.incomeSource === 'estimate' ? 'משכורת משוערת' : 'הכנסה'}</span><b>${money(C.income)}</b></div>
       <div class="stat"><span>קבועות</span><b>${money(C.fixedTotal)}</b></div>
       <div class="stat"><span>חיסכון</span><b>${money(C.savings)}</b></div>
       <div class="stat hl"><span>פנוי להוצאות</span><b>${money(C.available)}</b></div></div>
-    <div class="unalloc ${C.available <= 0 || un < 0 ? 'bad' : un > 0 ? '' : 'ok'}">${!C.income ? `${ic('info')} הזן הכנסה חודשית כדי לראות כמה פנוי להוצאות.`
-      : C.available <= 0 ? `ההוצאות הקבועות והחיסכון גבוהים מההכנסה. אין סכום פנוי להוצאות.`
-      : un > 0 ? `חולקו לקטגוריות ${money(C.allocated)} · <b>עוד לא חולק ${money(un)}</b>`
-      : un === 0 ? `${ic('check')} כל הסכום הפנוי חולק לקטגוריות` : `חילקת ${money(-un)} יותר ממה שפנוי. הורד תקציב באחת הקטגוריות.`}</div>`;
+    ${!C.income ? `<div class="unalloc">${ic('info')} הזן משכורת כדי לראות כמה פנוי להוצאות.</div>`
+      : C.available <= 0 ? `<div class="unalloc bad">ההוצאות הקבועות והחיסכון גבוהים מההכנסה. אין סכום פנוי להוצאות.</div>` : ''}`;
 }
 function savingsLine() {
   const C = monthSummary(state.settings, state.tx, nowKey());
@@ -43,7 +40,7 @@ export function render(el) {
   <section class="card"><div class="card-h"><h2>${ic('hand-coins')} הכנסה</h2></div>
     <div class="row2">
       <div class="field"><label for="bd-inc">משכורת רגילה נטו (₪)</label><input id="bd-inc" type="number" inputmode="decimal" value="${S.income || ''}" placeholder="למשל 12000"></div>
-      <p class="hint" style="grid-column:1/-1">${ic('info')}כל חודש מחושב לפי המשכורת שנכנסה בו. עד שהיא נכנסת, לפי הנמוכה מ-3 החודשים האחרונים, וכשמגיעה משכורת גבוהה יותר, ההפרש מתווסף לימים שנשארו.</p>
+      <p class="hint" style="grid-column:1/-1">${ic('info')}המשכורת שנכנסת בתחילת החודש קובעת את החודש הזה (גם אם נכנסה כמה ימים לפני ה-1). עד שהיא נכנסת, לפי הנמוכה מ-3 החודשים האחרונים.</p>
       <div class="field"><label for="bd-sd">חודש התקציב מתחיל ב-</label><select id="bd-sd">${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}" ${S.startDay === i + 1 ? 'selected' : ''}>${i + 1} לחודש</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label for="bd-bc">קנייה באשראי נספרת</label><select id="bd-bc">
         <option value="0" ${S.byCharge ? '' : 'selected'}>בחודש שבו קניתי</option>
@@ -76,19 +73,18 @@ export function render(el) {
         <button class="btn small" data-dep="${g.id}" type="button" ${g.monthly ? '' : 'disabled'}>${ic('piggy')}הפקדתי ₪${fmt0(g.monthly)}</button></div></div>`; }).join('')}</div>
     <button class="btn small" id="g-add" type="button">${ic('target')}יעד חיסכון</button></section>
 
-  <section class="card"><div class="card-h"><h2>${ic('sliders')} תקציב לקטגוריות</h2><button class="btn small primary" id="auto" type="button">${ic('sparkle')}חלוקה אוטומטית</button></div>
-    <p class="hint">החלוקה האוטומטית מחלקת את הפנוי לפי יחס מקובל (סופר 30%, רכב 14%, אוכל בחוץ 10%...). אחר כך משנים כל סכום כרצונך.</p>
+  <section class="card"><div class="card-h"><h2>${ic('sliders')} הקטגוריות שלי</h2></div>
+    <p class="hint">אין צורך לחלק מראש. במסך הבית, ב"לאן הולך הכסף", רואים כמה יוצא בכל קטגוריה, מהגדולה לקטנה.</p>
     ${(() => {
-      const row = c => { const sp = SPENT.byCat[c.id] || 0; return `<div class="crow">${catIcon(c)}
+      const row = c => { const sp = SPENT.byCat[c.id] || 0; return `<div class="crow nob">${catIcon(c)}
       <div class="crow-n"><input type="text" id="c-n-${c.id}" data-c="${c.id}" data-k="name" value="${esc(c.name)}" aria-label="שם הקטגוריה">
-        <small class="${c.budget && sp > c.budget ? 't-bad' : ''}">${sp ? `יצא החודש ${money(sp)}` : 'עוד לא יצא החודש'}</small></div>
-      <input type="number" inputmode="decimal" id="c-b-${c.id}" data-c="${c.id}" data-k="budget" value="${c.budget || ''}" placeholder="0" aria-label="תקציב ל${esc(c.name)}">
+        <small>${sp ? `החודש ${money(sp)}` : 'עוד לא יצא החודש'}</small></div>
       ${c.id === 'other' ? '<span></span>' : `<button class="icon-btn del" data-del-c="${c.id}" aria-label="מחיקת ${esc(c.name)}" type="button">${ic('trash')}</button>`}</div>`; };
-      const all = S.categories.filter(c => c.id !== 'refund'), used = all.filter(c => c.budget > 0 || SPENT.byCat[c.id] > 0), rest = all.filter(c => !used.includes(c));
-      // a new user sees everything; after that, only categories with a budget or with spending this month
+      const all = S.categories.filter(c => c.id !== 'refund').slice().sort((a, b) => (SPENT.byCat[b.id] || 0) - (SPENT.byCat[a.id] || 0));
+      const used = all.filter(c => SPENT.byCat[c.id] > 0), rest = all.filter(c => !used.includes(c));
       if (!used.length || rest.length < 3) return `<div class="elist">${all.map(row).join('')}</div>`;
       return `<div class="elist">${used.map(row).join('')}</div>
-        <details class="morecats"><summary>${ic('caret-down')}עוד ${rest.length} קטגוריות בלי תקציב</summary><div class="elist">${rest.map(row).join('')}</div></details>`;
+        <details class="morecats"><summary>${ic('caret-down')}עוד ${rest.length} קטגוריות בלי הוצאות החודש</summary><div class="elist">${rest.map(row).join('')}</div></details>`;
     })()}
     <details class="newcat"><summary>${ic('plus')} קטגוריה חדשה</summary>
       <div class="field"><label for="nc-n">שם</label><input id="nc-n" type="text" placeholder="למשל: חיות מחמד" maxlength="40"></div>
@@ -115,18 +111,13 @@ function wire(el) {
   });
   $$('[data-fx]', el).forEach(i => i.oninput = () => { const f = S.fixed.find(x => x.id === i.dataset.fx); f[i.dataset.k] = i.dataset.k === 'amount' ? num(i.value) : i.value; save(); });
   $$('[data-g]', el).forEach(i => i.oninput = () => { const g = S.goals.find(x => x.id === i.dataset.g); g[i.dataset.k] = i.dataset.k === 'name' ? i.value : num(i.value); save(); });
-  $$('[data-c]', el).forEach(i => i.oninput = () => { const c = S.categories.find(x => x.id === i.dataset.c); c[i.dataset.k] = i.dataset.k === 'budget' ? num(i.value) : i.value; save(); });
+  $$('[data-c]', el).forEach(i => i.oninput = () => { const c = S.categories.find(x => x.id === i.dataset.c); c[i.dataset.k] = i.value; save(); });
   $$('[data-del-fx]', el).forEach(b => armConfirm(b, () => { S.fixed = S.fixed.filter(x => x.id !== b.dataset.delFx); persist(); render(el); }));
   $$('[data-del-g]', el).forEach(b => armConfirm(b, () => { S.goals = S.goals.filter(x => x.id !== b.dataset.delG); persist(); render(el); }));
   $$('[data-del-c]', el).forEach(b => armConfirm(b, () => { const gone = b.dataset.delC; S.categories = S.categories.filter(x => x.id !== gone); state.tx.forEach(t => { if (t.category === gone) t.category = 'other'; }); for (const k in S.rules) if (S.rules[k] === gone) delete S.rules[k]; persist(); render(el); toast('נמחקה. ההוצאות שלה עברו ל"שונות".'); }));
   $$('[data-dep]', el).forEach(b => b.onclick = () => { const g = S.goals.find(x => x.id === b.dataset.dep); g.saved = Math.round((g.saved + g.monthly) * 100) / 100; persist(); render(el); toast(`כל הכבוד! ${fmt0(g.monthly)} ₪ נוספו ל"${g.name || 'יעד'}"`); });
   $('#fx-add', el).onclick = () => { const f = { id: uid(), name: '', amount: 0, keyword: '' }; S.fixed.push(f); persist(); render(el); $('#fx-n-' + f.id).focus(); };
   $('#g-add', el).onclick = () => { const g = { id: uid(), name: '', target: 0, monthly: 0, saved: 0 }; S.goals.push(g); persist(); render(el); $('#g-n-' + g.id).focus(); };
-  $('#auto', el).onclick = () => {
-    const C = monthSummary(S, state.tx, nowKey());
-    if (C.available <= 0) { toast('אין סכום פנוי לחלוקה. בדוק הכנסה, קבועות וחיסכון.'); return; }
-    S.categories = autoSplit(S.categories, C.available); persist(); render(el); toast('התקציב חולק. אפשר לשנות כל סכום.');
-  };
   let icon = CAT_ICONS[CAT_ICONS.length - 1];
   $$('[data-ico]', el).forEach(b => b.onclick = () => { icon = b.dataset.ico; $$('[data-ico]', el).forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-checked', x === b); }); });
   $('#nc-add', el).onclick = () => {
