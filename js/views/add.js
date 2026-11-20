@@ -29,33 +29,32 @@ export function render(el) {
   if (mode === 'paste') return renderPaste(el);
   if (mode === 'payslip') return renderPayslip(el);
   el.innerHTML = `
-    <section class="card intro"><h2>הוספת הוצאות</h2><p class="muted">הכל נקרא כאן, על המכשיר. לפני שמירה רואים הכל, ומה שכבר נשמר מסונן לבד.</p></section>
     <label class="option drop" id="shots-drop" for="shots-in">
       <span class="opt-ic" style="--c:#14967C">${ic('images')}</span>
-      <span class="opt-t"><b>צילומי מסך מהאשראי</b><small>בוחרים צילום אחד או כמה מאפליקציית ישראכרט. Stashwise קוראת תאריך, שעה, בית עסק, מקום וסכום.</small></span>
+      <span class="opt-t"><b>צילומי מסך מהאשראי</b><small>צילום אחד או כמה מאפליקציית האשראי</small></span>
       <span class="badge">הכי קל</span>
       <input id="shots-in" type="file" accept="image/*" multiple hidden>
     </label>
     <button class="option" id="opt-slip" type="button">
       <span class="opt-ic" style="--c:#F6B829">${ic('hand-coins')}</span>
-      <span class="opt-t"><b>תלוש משכורת</b><small>פעם בחודש: צילום של התלוש, והמשכורת נרשמת כהכנסה של החודש.</small></span>
+      <span class="opt-t"><b>תלוש משכורת</b><small>צילום של התלוש</small></span>
       ${ic('caret-left', 'go')}</button>
     <label class="option" for="file-in">
       <span class="opt-ic" style="--c:#5B8DEF">${ic('file-xls')}</span>
-      <span class="opt-t"><b>קובץ מישראכרט או מהבנק</b><small>אקסל, CSV או PDF. אפשר לבחור כמה קבצים יחד (למשל אחד לכל כרטיס). הכי מדויק לחודש שלם.</small></span>
+      <span class="opt-t"><b>קובץ מישראכרט או מהבנק</b><small>אקסל או PDF</small></span>
       ${ic('caret-left', 'go')}
       <input id="file-in" type="file" multiple accept=".xlsx,.xls,.csv,.html,.pdf,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden>
     </label>
     <button class="option" id="opt-paste" type="button">
       <span class="opt-ic" style="--c:#9C7FE3">${ic('copy')}</span>
-      <span class="opt-t"><b>הדבקת טקסט</b><small>טקסט שהעתקת מהטלפון ("טקסט חי" או Google Lens).</small></span>
+      <span class="opt-t"><b>הדבקת טקסט</b><small>טקסט שהעתקת</small></span>
       ${ic('caret-left', 'go')}</button>
     <button class="option" id="opt-manual" type="button">
       <span class="opt-ic" style="--c:#F2865E">${ic('note')}</span>
-      <span class="opt-t"><b>הוספה ידנית</b><small>מזומן, הכנסה, או כל דבר אחר.</small></span>
+      <span class="opt-t"><b>הוספה ידנית</b><small>מזומן או כל דבר אחר</small></span>
       ${ic('caret-left', 'go')}</button>
     <div id="add-status"></div>
-    <p class="hint center">${ic('shield')} הכל נקרא בתוך הטלפון. מספרי כרטיס (מלבד 4 אחרונות), ת"ז ומספרי אישור נמחקים, והתמונה לא נשמרת.</p>
+    <p class="hint center">${ic('shield')} נקרא רק בטלפון, ולא נשמר</p>
     <details class="card help"><summary>${ic('file-xls')} איך מורידים את הקובץ מישראכרט או מהבנק?</summary>
       <p class="hint">ישראכרט:</p>
       <ol class="how"><li>נכנסים לאתר ישראכרט (בדפדפן, גם בטלפון) ומתחברים.</li>

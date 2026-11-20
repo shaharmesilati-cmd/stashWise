@@ -280,7 +280,7 @@ console.log('v1.2 tests passed');
 // v3.0 - daily money: what you do not spend is saved and adds to the next days
 {
   const { dailyBank, monthSummary } = await import('../js/calc.js');
-  const S = { income: 1200, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }; // November: 30 days -> 40 a day
+  const S = { income: 1200, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [], fullMonth: true }; // November: 30 days -> 40 a day
   const at = d => new Date(2026, 10, d, 9);
   const ex = (d, a) => ({ date: `2026-11-${String(d).padStart(2, '0')}`, amount: a, kind: 'expense' });
   let B = dailyBank(S, [], '2026-11', at(1));
@@ -350,7 +350,7 @@ console.log('v1.2 tests passed');
   assert.equal(Math.round(M.pct * 100), 24);
   assert.equal(bankMilestone(620, 900, 100).reachable, false, 'a milestone the month cannot reach is not promised');
   assert.equal(bankMilestone(-50, 900, 100).prev, 0);
-  const B = dailyBank({ income: 3000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }, [], '2026-11', new Date(2026, 10, 4, 9));
+  const B = dailyBank({ income: 3000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [], fullMonth: true }, [], '2026-11', new Date(2026, 10, 4, 9));
   assert.equal(B.maxEnd, 3000, 'without spending, the whole month stays');
   const s = normalizeSettings({ bank: { key: '2026-11', best: 620, hit: [250, 500, 'x'], pledge: '2026-11-10', wins: 2 }, wish: { name: ' אוזניות ', price: '600' } });
   assert.deepEqual(s.bank, { key: '2026-11', best: 620, hit: [250, 500], pledge: '2026-11-10', wins: 2 });
@@ -476,4 +476,27 @@ console.log('v1.2 tests passed');
   const P = catBreakdown(S, tx, '2026-10', new Date(2026, 10, 10, 9));
   assert.equal(P.rows[0].sp, 800);
   console.log('v3.6 category breakdown tests passed');
+}
+
+// v3.7 - a new user who starts in the middle of the month
+{
+  const { dailyBank, monthSummary } = await import('../js/calc.js');
+  const S = { income: 3000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }; // 100 a day
+  const at = d => new Date(2026, 10, d, 9);
+  // joins on the 20th with nothing recorded: no "saved" from days he was not here
+  let B = dailyBank(S, [], '2026-11', at(20));
+  assert.deepEqual([B.saved, B.morning, B.daily], [0, 100, 100], 'starts with today\'s amount only');
+  let C = monthSummary(S, [], '2026-11', at(20));
+  assert.equal(C.remaining, 1100, 'left for the month = the 11 days from today'); assert.equal(C.skipDays, 19);
+  // the next day, after not spending: yesterday's 100 is saved
+  B = dailyBank(S, [{ date: '2026-11-20', amount: 30, kind: 'expense' }], '2026-11', at(21));
+  assert.deepEqual([B.saved, B.morning], [70, 170]);
+  // he uploads the whole month's card statement: the month counts from its first purchase
+  const statement = [{ date: '2026-11-02', amount: 400, kind: 'expense' }, { date: '2026-11-15', amount: 900, kind: 'expense' }];
+  C = monthSummary(S, statement, '2026-11', at(20));
+  assert.equal(C.skipDays, 1); assert.equal(C.remaining, 3000 - 100 - 1300);
+  // someone with earlier months is never cut
+  C = monthSummary(S, [{ date: '2026-10-05', amount: 50, kind: 'expense' }], '2026-11', at(20));
+  assert.equal(C.skipDays, 0); assert.equal(C.remaining, 3000);
+  console.log('v3.7 new user mid-month tests passed');
 }

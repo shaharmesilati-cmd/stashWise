@@ -694,3 +694,28 @@ button.ring-wrap:active { transform: scale(.98); }
 .cm-bar i { display: block; width: 100%; border-radius: 10px; opacity: .55; transform-origin: bottom; animation: growy .6s var(--spring) both; animation-delay: calc(var(--i) * 50ms); }
 .cm.cur .cm-bar i { opacity: 1; } .cm-v { font-size: .7rem; color: var(--muted); min-height: 1em; } .cm.cur .cm-v { color: var(--ink); font-weight: 700; }
 .cm-l { font-size: .74rem; color: var(--muted); } .cm.cur .cm-l { color: var(--ink); font-weight: 700; }
+
+/* first run */
+.welcome { padding: 10px; }
+.wsteps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.wstep { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; padding: 12px 14px; border: 0; border-radius: 18px; background: var(--surface-2); color: var(--ink); font: inherit; font-weight: 700; text-decoration: none; text-align: start; cursor: pointer; }
+.wstep:active { transform: scale(.98); }
+.st-n { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #FFFFFF; color: var(--muted); font-weight: 800; }
+.st-t { flex: 1; } .st-v { color: var(--good); }
+.wsteps .now .wstep { background: var(--primary); color: #FFFFFF; box-shadow: 0 10px 24px rgba(0, 119, 182, .28); animation: nowpulse 2.4s ease-in-out .8s 2; }
+.wsteps .now .st-n { background: rgba(255, 255, 255, .22); color: #FFFFFF; }
+.wsteps .done .wstep { background: var(--green-soft); } .wsteps .done .st-n { background: var(--good); color: #FFFFFF; }
+.wsteps .next .wstep { opacity: .55; }
+@keyframes nowpulse { 50% { transform: scale(1.02); box-shadow: 0 14px 30px rgba(0, 119, 182, .38); } }
+.money-in { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 18px 0 8px; direction: ltr; }
+.money-in span { font-size: 2rem; font-weight: 800; color: var(--muted); }
+.money-in input { width: 70%; border: 0; border-bottom: 3px solid var(--primary); border-radius: 0; background: transparent; box-shadow: none; font-size: 2.6rem; font-weight: 800; text-align: center; padding: 4px 0; }
+.money-in input:focus { outline: none; }
+.money-in input.shake, .shake { animation: shake .35s; }
+@keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.install-hint { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 18px; background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.ih-step { display: inline-flex; align-items: center; gap: 6px; } .install-hint .ic { width: 1.4em; height: 1.4em; }
+.lk-warn { display: flex; align-items: center; gap: 6px; font-size: .84rem; color: var(--warn); margin: -4px 0 0; }
+.lock-form .link-btn { align-self: center; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+.card.welcome { display: block; text-align: start; }
+.card.welcome .wsteps { width: 100%; align-self: stretch; }

@@ -22,13 +22,15 @@ export function render(el) {
   const past = C.daysLeft === 0, future = C.elapsed === 0;
 
 
-  // first run: just the three steps
-  if (!S.income && !state.tx.length && !S.fixed.length && !S.goals.length && true) {
-    parts.push(`<section class="card welcome"><span class="w-ic">${ic('wallet')}</span><h2>ברוך הבא ל-Stashwise</h2>
-      <p>שני צעדים ואתה רואה כמה מותר להוציא היום, בלי לחשוב.</p>
-      <a class="btn primary wide" href="#budget">${ic('hand-coins')}1. כמה נכנס לי בחודש</a>
-      <a class="btn wide" href="#add">${ic('plus')}2. הוספת ההוצאות של החודש</a></section>`);
-    el.innerHTML = parts.join(''); return;
+  // first run: two steps. The first one asks only for the salary, right here.
+  if (!state.tx.length) {
+    const done1 = S.income > 0;
+    parts.push(`<section class="card welcome">
+      <ol class="wsteps">
+        <li class="${done1 ? 'done' : 'now'}"><button type="button" class="wstep" id="w-income"><span class="st-n">${done1 ? ic('check') : '1'}</span><span class="st-t">כמה נכנס לי בחודש</span>${done1 ? `<b class="st-v num">${money(S.income)}</b>` : ic('caret-left', 'go')}</button></li>
+        <li class="${done1 ? 'now' : 'next'}"><a class="wstep" href="#add"><span class="st-n">2</span><span class="st-t">הוספת ההוצאות</span>${ic('caret-left', 'go')}</a></li>
+      </ol></section>`);
+    if (!done1) { el.innerHTML = parts.join(''); wireWelcome(el); return; }
   }
 
   if (!C.isCurrent && !C.inPeriod.length) {
@@ -103,6 +105,7 @@ export function render(el) {
   parts.push(`<button class="analysis-btn" id="analysis" type="button">${ic('sparkle')}<span><b>ניתוח החודש</b></span>${ic('caret-left')}</button>`);
 
   el.innerHTML = parts.join('');
+  wireWelcome(el);
   wire(el, cats);
   wireBank(el, B, C);
   enter(el);
@@ -271,6 +274,18 @@ function openAllCats() {
 }
 const monthLabel = k => `${MONTHS[+k.slice(5) - 1]} ${k.slice(0, 4)}`;
 
+/** The salary, asked in one field. */
+function wireWelcome(el) {
+  const b = $('#w-income', el); if (!b) return;
+  b.onclick = () => openSheet('כמה נכנס לי בחודש', `<div class="money-in"><span>₪</span><input id="w-inc" type="text" inputmode="numeric" pattern="[0-9]*" value="${state.settings.income || ''}" aria-label="המשכורת בחודש, נטו" placeholder="0"></div>
+    <button class="btn primary wide" id="w-ok" type="button">${ic('check')}שמירה</button>`, (sh, close) => {
+    const inp = $('#w-inc', sh); setTimeout(() => inp.focus(), 250);
+    const ok = () => { const v = Math.round(parseFloat(inp.value.replace(/[^\d.]/g, ''))); if (!(v > 0)) { inp.focus(); inp.classList.add('shake'); setTimeout(() => inp.classList.remove('shake'), 400); return; } state.settings.income = v; persist(); close(); changed('settings'); };
+    $('#w-ok', sh).onclick = ok; inp.onkeydown = e => { if (e.key === 'Enter') ok(); };
+    inp.oninput = () => { const d = inp.value.replace(/[^\d]/g, ''); inp.value = d ? Number(d).toLocaleString('en-US') : ''; };
+  });
+}
+
 function nextStep(S, C, key) {
   const pend = needsCategory(S, state.tx, key);
   if (pend.length) {
@@ -286,7 +301,8 @@ function nextStep(S, C, key) {
         <button type="button" class="qchip more" data-more="1">${ic('dots')}כל הקטגוריות</button><button type="button" class="qchip keep" data-keep="1">דלג</button></div></section>`;
   }
   const hasSlip = C.incomeSource === 'actual'; // the salary of this month already came in (slip or bank)
-  if (C.isCurrent && !hasSlip && new Date().getDate() >= 5)
+  const newUser = !state.tx.some(t => t.date && t.date < isoOf(C.start)); // first month: no reminders yet
+  if (C.isCurrent && !hasSlip && !newUser && new Date().getDate() >= 5)
     return `<section class="card next slip"><div class="nx-h"><span class="nx-ic">${ic('hand-coins')}</span><b>הגיע תלוש המשכורת?</b></div><a class="btn small gold" href="#add" data-go="payslip">${ic('scan')}העלאת תלוש</a></section>`;
   const days = S.lastBackup ? (Date.now() - S.lastBackup) / 86400000 : Infinity;
   if (state.tx.length >= 5 && days >= 7)

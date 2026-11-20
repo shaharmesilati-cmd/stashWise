@@ -18,6 +18,9 @@ let view = 'home';
 const MARK = 'stashwise-had-data';
 const markSet = () => { try { localStorage.setItem(MARK, String(Date.now())); } catch { } };
 const markGet = () => { try { return localStorage.getItem(MARK); } catch { return null; } };
+/** iPhone/iPad Safari, not opened from the home screen: data saved here would not be seen by the home-screen app. */
+const iosBrowser = () => navigator.standalone === false;
+
 function lockScreen(mode) {
   const el = $('#lock');
   el.hidden = false; $('#app').hidden = true;
@@ -25,25 +28,25 @@ function lockScreen(mode) {
   el.innerHTML = `<div class="lock-card">
     <div class="lock-logo">${ic('wallet', 'big')}</div>
     <h1>Stashwise</h1>
-    <p class="lock-sub">${setup ? 'התקציב החודשי שלך, נעול ומוצפן על המכשיר הזה בלבד.' : 'הזן את הקוד כדי לפתוח'}</p>
+    <p class="lock-sub">${setup ? 'כמה אפשר להוציא היום, וכמה חסכת' : 'הזן את הקוד כדי לפתוח'}</p>
+    ${setup && iosBrowser() ? `<div class="install-hint" role="note" aria-label="קודם מוסיפים למסך הבית: כפתור השיתוף ואז הוספה למסך הבית"><span class="ih-step">${ic('export')}</span>${ic('caret-left')}<span class="ih-step">${ic('plus-square')}הוספה למסך הבית</span></div>` : ''}
     ${setup && markGet() ? `<div class="notice">${ic('warning')}<span>נראה שהדפדפן מחק את הנתונים שהיו כאן (עדכון של האפליקציה לא מוחק נתונים). אם יש לך קובץ גיבוי, בחר קוד ולחץ "שחזור מקובץ גיבוי".</span></div>` : ''}
     <form id="lock-form" class="lock-form" autocomplete="off" novalidate>
-      ${setup ? `<div class="field"><label for="lk-name">איך לקרוא לך? (לא חובה)</label><input id="lk-name" type="text" maxlength="30" autocomplete="given-name"></div>` : ''}
-      <div class="field"><label for="lk-pass">${setup ? 'בחר קוד פתיחה (לפחות 6 תווים)' : 'קוד פתיחה'}</label>
-        <div class="pass-wrap"><input id="lk-pass" type="password" inputmode="text" autocomplete="${setup ? 'new-password' : 'current-password'}" required minlength="6">
+      <div class="field"><label for="lk-pass">${setup ? 'בחר קוד' : 'קוד פתיחה'}</label>
+        <div class="pass-wrap"><input id="lk-pass" type="password" inputmode="text" autocomplete="${setup ? 'new-password' : 'current-password'}" required minlength="6"${setup ? ' placeholder="6 תווים לפחות"' : ''}>
         <button type="button" class="icon-btn" id="lk-eye" aria-label="הצג קוד">${ic('eye')}</button></div></div>
-      ${setup ? `<div class="field"><label for="lk-pass2">שוב את אותו קוד</label><input id="lk-pass2" type="password" autocomplete="new-password" required></div>
-        <label class="check"><input type="checkbox" id="lk-ok"> <span>הבנתי: אין שום דרך לשחזר קוד שנשכח. בלי הקוד הנתונים לא נפתחים, ולכן כדאי לגבות מדי פעם.</span></label>` : ''}
-      <label class="check"><input type="checkbox" id="lk-rem" ${setup ? 'checked' : ''}> <span>להישאר מחובר במכשיר הזה - בלי קוד בכל פתיחה (נעילת הטלפון שומרת עליו). אפשר לשנות במסך "עוד".</span></label>
+      ${setup ? `<div class="field"><label for="lk-pass2">שוב את הקוד</label><input id="lk-pass2" type="password" autocomplete="new-password" required></div>
+        <p class="lk-warn">${ic('warning')}קוד שנשכח - אי אפשר לשחזר</p>` : ''}
+      <label class="check"><input type="checkbox" id="lk-rem" ${setup ? 'checked' : ''}> <span>להישאר מחובר במכשיר הזה</span></label>
       <div id="lk-err" class="form-err" role="alert" hidden></div>
       <button class="btn primary wide" id="lk-go" type="submit">${setup ? ic('lock-key') + 'בואו נתחיל' : ic('lock') + 'פתיחה'}</button>
-      ${setup ? `<label class="btn wide" for="lk-file">${ic('upload')}יש לי קובץ גיבוי - שחזור</label><input id="lk-file" type="file" accept=".stash,.kis,.shefa,application/json" hidden>` : `<button class="link-btn" type="button" id="lk-forgot">שכחתי את הקוד</button>`}
+      ${setup ? `<label class="link-btn" for="lk-file">${ic('upload')}שחזור מגיבוי</label><input id="lk-file" type="file" accept=".stash,.kis,.shefa,application/json" hidden>` : `<button class="link-btn" type="button" id="lk-forgot">שכחתי את הקוד</button>`}
     </form>
     <p class="lock-foot">${ic('shield')} בלי חשבון, בלי שרת. הנתונים לא יוצאים מהמכשיר.</p></div>`;
   const pass = $('#lk-pass'), err = $('#lk-err'), go = $('#lk-go');
   const showErr = m => { err.textContent = m; err.hidden = !m; };
   $('#lk-eye').onclick = () => { pass.type = pass.type === 'password' ? 'text' : 'password'; };
-  setTimeout(() => (setup ? $('#lk-name') : pass).focus(), 50);
+  if (!iosBrowser()) setTimeout(() => pass.focus(), 50);
   if (!setup) $('#lk-forgot').onclick = forgotFlow;
   if (setup) $('#lk-file').onchange = e => {
     const file = e.target.files[0]; e.target.value = ''; if (!file) return;
@@ -69,13 +72,11 @@ function lockScreen(mode) {
     if (setup) {
       if (p.length < 6) return showErr('הקוד צריך להיות באורך 6 תווים לפחות.');
       if (p !== $('#lk-pass2').value) return showErr('שני הקודים לא זהים.');
-      if (!$('#lk-ok').checked) return showErr('צריך לסמן שהבנת שאי אפשר לשחזר קוד.');
     }
     go.disabled = true; go.innerHTML = `<span class="spin"></span>${setup ? 'מכין…' : 'פותח…'}`;
     try {
       if (setup) {
         await vault.create(p);
-        state.settings.name = $('#lk-name').value.trim().slice(0, 30);
         persist(true);
       } else {
         await vault.unlock(p);
@@ -120,8 +121,7 @@ async function startApp(firstRun) {
   $('#lock-now').hidden = session.remembered;
   if (!session.remembered) startAutoLock();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
-  show(firstRun ? 'budget' : (location.hash.slice(1) || 'home'));
-  if (firstRun) toast('מוכן! נתחיל בכמה נכנס לך בחודש.');
+  show(firstRun ? 'home' : (location.hash.slice(1) || 'home')); // a new user lands on the two first steps
   takeShared();
   autoClassify();
 }

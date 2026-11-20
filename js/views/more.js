@@ -7,7 +7,7 @@ import { findSavedDuplicates } from '../dedupe.js';
 import { money, shortDate } from '../util.js';
 import { install, lockNow, session, startAutoLock, stopAutoLock } from '../app.js';
 
-const VERSION = '3.6.0';
+const VERSION = '3.7.0';
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 const standalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
