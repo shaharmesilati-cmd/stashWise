@@ -48,7 +48,7 @@ export function render(el) {
     parts.push(`<section class="hero2 ${over ? 'watch' : 'good'}">
       <button type="button" id="why" class="ring-wrap" aria-label="איך המספר מחושב">
         ${ringSvg(left)}
-        <span class="ring-in"><span class="h-lbl">${over ? 'עברת היום ב-' : 'אפשר להוציא היום'}</span><b class="h-big" data-count="${Math.round(Math.abs(B.balance))}">${money(Math.abs(B.balance))}</b>
+        <span class="ring-in"><span class="h-lbl">${over ? 'עברת היום ב-' : 'אפשר להוציא היום'}</span><b class="h-big${money(Math.abs(B.balance)).length > 8 ? ' long' : ''}" data-count="${Math.round(Math.abs(B.balance))}">${money(Math.abs(B.balance))}</b>
           <span class="h-why">${ic('question')}</span></span>
       </button>
       <div class="h-parts">${over ? `<span class="hp">${ic('sun')}מחר ${money(B.tomorrow ?? 0)}</span>`
@@ -64,14 +64,14 @@ export function render(el) {
       <button type="button" class="mtile save-tile" id="piggy" aria-label="חסכת ${fmt0(savedAll)} שקלים">
         <span class="coins" id="piggy-anim" aria-hidden="true" data-fill="${coinFill(savedAll, B.base).toFixed(3)}"></span>
         <span class="t-lbl">חסכת החודש</span><b class="t-big num" id="saved-n" data-count="${Math.round(savedAll)}">${money(savedAll)}</b>
-        ${B.tomorrow != null && !over ? `<span class="t-sub good">${(B.tomorrowSaved ?? 0) > savedNow + .5 ? `מחר ${money((B.tomorrowSaved ?? 0) + vaultMonth(S, C))}` : 'לא מוציא? זה גדל'}</span>` : '<span class="t-sub">&nbsp;</span>'}</button>
+        <span class="t-sub">&nbsp;</span></button>
     </section>`);
   } else {
     // past or future month, or the month is already over budget: the month is the story
-    const left = C.available > 0 ? Math.max(0, C.remaining) / C.available : 0;
+    const left = C.available > 0 ? (C.remaining < 0 ? Math.min(1, -C.remaining / C.available) : C.remaining / C.available) : 0;
     const label = C.remaining < 0 ? 'חרגת החודש ב-' : past ? 'נשאר בסוף החודש' : future ? 'יהיה לך להוציא החודש' : 'נשאר עד סוף החודש';
     parts.push(`<section class="hero2 ${C.status}"><div class="ring-wrap">${ringSvg(left)}
-      <span class="ring-in"><span class="h-lbl">${label}</span><b class="h-big" data-count="${Math.round(Math.abs(C.remaining))}">${money(Math.abs(C.remaining))}</b></span></div>
+      <span class="ring-in"><span class="h-lbl">${label}</span><b class="h-big${money(Math.abs(C.remaining)).length > 8 ? ' long' : ''}" data-count="${Math.round(Math.abs(C.remaining))}">${money(Math.abs(C.remaining))}</b></span></div>
       <p class="h-sub">${C.remaining < 0 ? 'כל שקל שלא יוצא מקטין את החריגה' : `${C.total} ימים · תקציב ${money(C.available)}`}</p></section>`);
   }
 
@@ -251,8 +251,9 @@ function spendBar(CB) {
   return `<div class="sp-bar" role="img" aria-label="חלוקת ההוצאות לפי קטגוריה">${main.map((r, i) => `<i style="width:${(r.sp / CB.total * 100).toFixed(2)}%;background:${r.c.color};--i:${i}"></i>`).join('')}${rest > 0 ? `<i style="width:${(rest / CB.total * 100).toFixed(2)}%;background:#D5DCE6;--i:6"></i>` : ''}</div>`;
 }
 /** Change vs the same point last month: up in soft orange, down in green. Small changes are not shown. */
+const hasPast = () => { const k = state.ui.curKey; return state.tx.some(t => t.date && t.date < k + '-01'); };
 function deltaChip(r) {
-  if (!r.prev) return r.sp > 0 ? '<span class="dl new">חדש</span>' : '';
+  if (!r.prev) return r.sp > 0 && hasPast() ? '<span class="dl new">חדש</span>' : '';
   if (Math.abs(r.delta) < Math.max(20, r.prev * 0.08)) return '<span class="dl same">כמו קודם</span>';
   return `<span class="dl ${r.delta > 0 ? 'up' : 'down'}">${ic(r.delta > 0 ? 'arrow-up' : 'arrow-down')}${money(Math.abs(r.delta))}</span>`;
 }
@@ -300,14 +301,21 @@ function nextStep(S, C, key) {
       <div class="chips">${quick.map(c => `<button type="button" class="qchip" data-cat="${esc(c.id)}" style="--c:${c.color}">${ic(c.icon)}${esc(c.name)}</button>`).join('')}
         <button type="button" class="qchip more" data-more="1">${ic('dots')}כל הקטגוריות</button><button type="button" class="qchip keep" data-keep="1">דלג</button></div></section>`;
   }
+  if (C.isCurrent && C.gapDays >= 3)
+    return `<a class="card next addx" href="#add"><div class="nx-h"><span class="nx-ic">${ic('plus')}</span><b>הוספת ההוצאות</b>${ic('caret-left', 'go')}</div></a>`;
+  if (C.isCurrent && C.remaining < 0) {
+    const top = catBreakdown(S, state.tx, key).rows.find(r => r.sp > 0);
+    if (top) return `<button type="button" class="card next overc" data-catd="${esc(top.c.id)}"><div class="nx-h">${catIcon(top.c)}<b>${esc(top.c.name)}</b><b class="num">${money(top.sp)}</b>${ic('caret-left', 'go')}</div></button>`;
+  }
   const hasSlip = C.incomeSource === 'actual'; // the salary of this month already came in (slip or bank)
   const newUser = !state.tx.some(t => t.date && t.date < isoOf(C.start)); // first month: no reminders yet
   if (C.isCurrent && !hasSlip && !newUser && new Date().getDate() >= 5)
     return `<section class="card next slip"><div class="nx-h"><span class="nx-ic">${ic('hand-coins')}</span><b>הגיע תלוש המשכורת?</b></div><a class="btn small gold" href="#add" data-go="payslip">${ic('scan')}העלאת תלוש</a></section>`;
   const days = S.lastBackup ? (Date.now() - S.lastBackup) / 86400000 : Infinity;
-  if (state.tx.length >= 5 && days >= 7)
+  const since = state.tx.length ? (Date.now() - Math.min(...state.tx.map(t => t.added || Date.now()))) / 86400000 : 0;
+  if (days >= 7 && (state.tx.length >= 30 || (state.tx.length >= 5 && since >= 7)))
     return `<section class="card next backup"><div class="nx-h"><span class="nx-ic">${ic('shield')}</span><b>${S.lastBackup ? `עברו ${Math.floor(days)} ימים מהגיבוי האחרון` : 'עוד לא גיבית'}</b></div>
-      <p>הנתונים נשמרים רק בטלפון. גיבוי לדרייב או ל-iCloud שומר עליהם גם אם הטלפון יוחלף או שהדפדפן ימחק אותם.</p><a class="btn small primary" href="#more">${ic('download')}לגבות עכשיו</a></section>`;
+      <a class="btn small" href="#more">${ic('download')}לגבות עכשיו</a></section>`;
   const I = monthInsights(S, state.tx, key);
   const good = I.list.find(x => x.tone === 'good' || x.tone === 'tip');
   if (good) return `<section class="card next goodc"><div class="nx-h"><span class="nx-ic">${ic(good.icon)}</span><b>${good.tone === 'tip' ? 'רעיון לחיסכון' : 'יפה מאוד'}</b></div><p>${esc(good.text)}</p></section>`;

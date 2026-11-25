@@ -37,7 +37,7 @@ function lockScreen(mode) {
         <button type="button" class="icon-btn" id="lk-eye" aria-label="הצג קוד">${ic('eye')}</button></div></div>
       ${setup ? `<div class="field"><label for="lk-pass2">שוב את הקוד</label><input id="lk-pass2" type="password" autocomplete="new-password" required></div>
         <p class="lk-warn">${ic('warning')}קוד שנשכח - אי אפשר לשחזר</p>` : ''}
-      <label class="check"><input type="checkbox" id="lk-rem" ${setup ? 'checked' : ''}> <span>להישאר מחובר במכשיר הזה</span></label>
+      <label class="check"><input type="checkbox" id="lk-rem"> <span>להישאר מחובר במכשיר הזה</span></label>
       <div id="lk-err" class="form-err" role="alert" hidden></div>
       <button class="btn primary wide" id="lk-go" type="submit">${setup ? ic('lock-key') + 'בואו נתחיל' : ic('lock') + 'פתיחה'}</button>
       ${setup ? `<label class="link-btn" for="lk-file">${ic('upload')}שחזור מגיבוי</label><input id="lk-file" type="file" accept=".stash,.kis,.shefa,application/json" hidden>` : `<button class="link-btn" type="button" id="lk-forgot">שכחתי את הקוד</button>`}

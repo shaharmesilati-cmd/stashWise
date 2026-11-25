@@ -40,17 +40,14 @@ export function render(el) {
   <section class="card"><div class="card-h"><h2>${ic('hand-coins')} הכנסה</h2></div>
     <div class="row2">
       <div class="field"><label for="bd-inc">משכורת רגילה נטו (₪)</label><input id="bd-inc" type="number" inputmode="decimal" value="${S.income || ''}" placeholder="למשל 12000"></div>
-      <p class="hint" style="grid-column:1/-1">${ic('info')}המשכורת שנכנסת בתחילת החודש קובעת את החודש הזה (גם אם נכנסה כמה ימים לפני ה-1). עד שהיא נכנסת, לפי הנמוכה מ-3 החודשים האחרונים.</p>
       <div class="field"><label for="bd-sd">חודש התקציב מתחיל ב-</label><select id="bd-sd">${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}" ${S.startDay === i + 1 ? 'selected' : ''}>${i + 1} לחודש</option>`).join('')}</select></div>
       <div class="field" style="grid-column:1/-1"><label for="bd-bc">קנייה באשראי נספרת</label><select id="bd-bc">
         <option value="0" ${S.byCharge ? '' : 'selected'}>בחודש שבו קניתי</option>
         <option value="1" ${S.byCharge ? 'selected' : ''}>בחודש שבו האשראי יורד (תזרים)</option></select></div>
     </div>
-    <p class="hint">${ic('info')} אם נרשמה החודש הכנסה גבוהה יותר (למשל מקובץ הבנק), החישוב משתמש בה.</p>
     <div id="bd-sum">${summaryHTML()}</div></section>
 
   <section class="card"><div class="card-h"><h2>${ic('lock')} הוצאות קבועות</h2></div>
-    <p class="hint">שכר דירה, משכנתא, ביטוחים, מנויים. "מילה לזיהוי" מסמנת את ההוצאה כשהיא מופיעה בפירוט, כדי שלא תיספר פעמיים.</p>
     <div class="elist">${S.fixed.map(f => `<div class="erow fx">
       <div class="field"><label for="fx-n-${f.id}">שם</label><input id="fx-n-${f.id}" type="text" data-fx="${f.id}" data-k="name" value="${esc(f.name)}" placeholder="שכר דירה"></div>
       <div class="field"><label for="fx-a-${f.id}">סכום</label><input id="fx-a-${f.id}" type="number" inputmode="decimal" data-fx="${f.id}" data-k="amount" value="${f.amount || ''}"></div>
@@ -74,11 +71,10 @@ export function render(el) {
     <button class="btn small" id="g-add" type="button">${ic('target')}יעד חיסכון</button></section>
 
   <section class="card"><div class="card-h"><h2>${ic('sliders')} הקטגוריות שלי</h2></div>
-    <p class="hint">אין צורך לחלק מראש. במסך הבית, ב"לאן הולך הכסף", רואים כמה יוצא בכל קטגוריה, מהגדולה לקטנה.</p>
     ${(() => {
       const row = c => { const sp = SPENT.byCat[c.id] || 0; return `<div class="crow nob">${catIcon(c)}
       <div class="crow-n"><input type="text" id="c-n-${c.id}" data-c="${c.id}" data-k="name" value="${esc(c.name)}" aria-label="שם הקטגוריה">
-        <small>${sp ? `החודש ${money(sp)}` : 'עוד לא יצא החודש'}</small></div>
+        ${sp ? `<small>${money(sp)}</small>` : ''}</div>
       ${c.id === 'other' ? '<span></span>' : `<button class="icon-btn del" data-del-c="${c.id}" aria-label="מחיקת ${esc(c.name)}" type="button">${ic('trash')}</button>`}</div>`; };
       const all = S.categories.filter(c => c.id !== 'refund').slice().sort((a, b) => (SPENT.byCat[b.id] || 0) - (SPENT.byCat[a.id] || 0));
       const used = all.filter(c => SPENT.byCat[c.id] > 0), rest = all.filter(c => !used.includes(c));

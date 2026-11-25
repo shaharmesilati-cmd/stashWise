@@ -357,7 +357,7 @@ function toRow(x, source) {
   const cls = isPlaceholder(merchant) ? { cat: 'other', conf: 0, why: 'pending' } : classify(merchant, { rules: S.rules, ids, cats: S.categories, history: HIST || (HIST = historyOf(state.tx)) });
   return { id: uid(), card: /^\d{4}$/.test(x.card || '') ? x.card : (review0card || null), date: x.date, time: x.time || null, merchant, place: x.place || placeOf(merchant), amount: x.amount, kind,
     category: cls.conf >= AUTO ? cls.cat : 'other', auto: cls.conf >= AUTO && cls.why !== 'rule' ? cls.why : null, installment: x.installment || null, foreign: !!x.foreign,
-    note: cleanField(x.note, 120), fixedId: fx ? fx.id : null, on: !x.suspect, suspect: x.suspect ? 'date' : null, dup: null, guessed: !!x.dateGuessed, dateGuessed: !!x.dateGuessed, origDate: x.date, chargeDate: x.chargeDate || null, pending: isPlaceholder(merchant) };
+    note: cleanField(x.note, 120), fixedId: fx ? fx.id : null, on: !x.suspect && !(x.dateGuessed && !/[\u0590-\u05FF]{2}/.test(merchant)), suspect: x.suspect ? 'date' : null, dup: null, guessed: !!x.dateGuessed, dateGuessed: !!x.dateGuessed, origDate: x.date, chargeDate: x.chargeDate || null, pending: isPlaceholder(merchant) };
 }
 let HIST = null;
 function buildReview(groupsRaw, source) {
@@ -488,10 +488,11 @@ function sum(el) {
   const exp = on.filter(r => r.kind === 'expense' && !back(r)).reduce((a, r) => a + num(r.amount), 0);
   const inc = on.filter(r => r.kind === 'income').reduce((a, r) => a + num(r.amount), 0);
   const skip = on.filter(r => r.kind === 'card-payment' || back(r)).length;
-  $('#rv-sum', el).innerHTML = `<b>${on.length}</b> לשמירה${exp ? ` · הוצאות ${money(exp)}` : ''}${inc ? ` · הכנסות ${money(inc)}` : ''}${skip ? ` · ${skip} לא נספרות` : ''}`;
+  $('#rv-sum', el).innerHTML = `<b>${on.length}</b> לשמירה${exp ? ` · הוצאות ${money(exp, 'auto')}` : ''}${inc ? ` · הכנסות ${money(inc, 'auto')}` : ''}${skip ? ` · ${skip} לא נספרות` : ''}`;
   $('#rv-save', el).disabled = !on.length && !review.cardFixes;
 }
 function save(el) {
+  if (!review) return; // a second tap after saving
   const now = Date.now();
   const chosen = review.rows.filter(r => r.on && r.merchant && num(r.amount) && /^\d{4}-\d{2}-\d{2}$/.test(r.date));
   let learned = false;

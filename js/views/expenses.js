@@ -56,7 +56,7 @@ function list(el) {
   let html = '', last = '';
   for (const t of tx) {
     if (t.date !== last) { html += `<div class="day-h">${new Date(t.date + 'T00:00').toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'numeric' })}</div>`; last = t.date; }
-    html += txRow(t);
+    html += txRow(t, true);
   }
   L.innerHTML = `<div class="tx-list">${html}</div>`;
 }

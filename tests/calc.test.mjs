@@ -494,7 +494,7 @@ console.log('v1.2 tests passed');
   // he uploads the whole month's card statement: the month counts from its first purchase
   const statement = [{ date: '2026-11-02', amount: 400, kind: 'expense' }, { date: '2026-11-15', amount: 900, kind: 'expense' }];
   C = monthSummary(S, statement, '2026-11', at(20));
-  assert.equal(C.skipDays, 1); assert.equal(C.remaining, 3000 - 100 - 1300);
+  assert.equal(C.skipDays, 1); assert.equal(C.tailDays, 4, '16-19 not recorded yet'); assert.equal(C.remaining, 3000 - 100 - 400 - 1300);
   // someone with earlier months is never cut
   C = monthSummary(S, [{ date: '2026-10-05', amount: 50, kind: 'expense' }], '2026-11', at(20));
   assert.equal(C.skipDays, 0); assert.equal(C.remaining, 3000);
@@ -527,4 +527,24 @@ console.log('v1.2 tests passed');
   assert.equal(pickReading('₪65.00', '6500'), '₪65.00');
   assert.equal(pickReading('2A.11.26', '24.11.26'), '24.11.26', 'a better reading is still taken');
   console.log('v3.8 misread date tests passed');
+}
+
+// v3.8 - a partial import must not show the missing days as huge savings (red team #1)
+{
+  const { dailyBank, monthSummary } = await import('../js/calc.js');
+  const S = { income: 3000, startDay: 1, savings: { mode: 'fixed', value: 0 }, fixed: [], categories: [] }; // 100 a day
+  const at = d => new Date(2026, 10, d, 9);
+  const shot = [{ date: '2026-11-03', amount: 60, kind: 'expense' }, { date: '2026-11-05', amount: 40, kind: 'expense' }];
+  let B = dailyBank(S, shot, '2026-11', at(25));
+  assert.ok(B.saved <= 200, 'only the recorded days 3-5 can be saved, got ' + B.saved);
+  assert.ok(Math.abs(B.saved + B.daily * B.daysLeft - B.remaining) < 1, 'the month still adds up');
+  assert.equal(monthSummary(S, shot, '2026-11', at(25)).gapDays, 19);
+  // a gap of 1-2 days is normal and still counts as saved
+  B = dailyBank(S, [{ date: '2026-11-03', amount: 60, kind: 'expense' }, { date: '2026-11-22', amount: 40, kind: 'expense' }], '2026-11', at(24));
+  assert.equal(monthSummary(S, [{ date: '2026-11-22', amount: 40, kind: 'expense' }], '2026-11', at(24)).tailDays, 0);
+  // someone with earlier months who really did not spend keeps his savings
+  const old = [{ date: '2026-10-05', amount: 50, kind: 'expense' }, { date: '2026-11-03', amount: 60, kind: 'expense' }];
+  assert.equal(monthSummary(S, old, '2026-11', at(25)).tailDays, 0);
+  assert.ok(dailyBank(S, old, '2026-11', at(25)).saved > 2000);
+  console.log('v3.8 partial import tests passed');
 }

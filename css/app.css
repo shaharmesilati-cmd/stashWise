@@ -720,3 +720,24 @@ button.ring-wrap:active { transform: scale(.98); }
 .card.welcome { display: block; text-align: start; }
 .card.welcome .wsteps { width: 100%; align-self: stretch; }
 .chip.bad-soft { background: #FFE9E0; color: #B4401A; font-weight: 700; }
+
+/* v3.8 red team */
+.m-today { position: static; transform: none; width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 50%; }
+.m-today[hidden] { display: none; }
+.next.backup { background: var(--surface); border: 1px solid var(--line); } .next.backup .nx-ic { color: var(--muted); }
+.next.addx, .next.overc { width: 100%; text-align: start; color: inherit; text-decoration: none; font: inherit; cursor: pointer; }
+.next.addx { background: var(--primary-soft); } .next.addx .nx-ic { color: var(--primary); }
+.next.overc { background: var(--orange-soft); } .next.overc .nx-h b.num { flex: 0 0 auto; }
+.nx-h .go { color: var(--muted); flex: 0 0 auto; }
+.h-big { max-width: 100%; overflow-wrap: anywhere; }
+.h-big.long { font-size: clamp(1.6rem, 8.5vw, 2.2rem); }
+.money-in.sm { padding: 4px 0 0; } .money-in.sm span { font-size: 1.6rem; } .money-in.sm input { font-size: 2.1rem; width: 60%; }
+input.bad, select.bad { border-color: var(--warn) !important; box-shadow: 0 0 0 3px var(--orange-soft) !important; }
+.more-f > summary { list-style: none; width: 40px; height: 32px; margin-inline-start: auto; display: grid; place-items: center; border-radius: 999px; background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.more-f > summary::-webkit-details-marker { display: none; }
+.more-f[open] > summary { margin-bottom: 10px; color: var(--primary); }
+.more-f { display: flex; flex-direction: column; gap: 10px; }
+.crow-n input { border-color: transparent; background: transparent; box-shadow: none; padding-inline: 4px; font-weight: 600; }
+.crow-n input:focus { border-color: var(--line); background: var(--surface); box-shadow: 0 0 0 3px var(--primary-soft); }
+.money-in input::-webkit-inner-spin-button, .money-in input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.money-in input[type=number] { -moz-appearance: textfield; appearance: textfield; }

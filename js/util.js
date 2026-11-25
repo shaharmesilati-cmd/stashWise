@@ -43,13 +43,25 @@ export function armConfirm(btn, fn, label = 'לחץ שוב לאישור') {
 }
 
 /** Bottom sheet. Returns close(). */
+let sheetPop = null;
 export function openSheet(title, bodyHtml, onMount) {
   const root = $('#sheet-root');
   const prevFocus = document.activeElement;
   root.innerHTML = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
     <div class="sheet-h"><h2>${esc(title)}</h2><button class="icon-btn" data-close aria-label="סגירה">${ic('x')}</button></div>
     ${bodyHtml}</div></div>`;
-  const close = () => { root.innerHTML = ''; document.removeEventListener('keydown', onKey); prevFocus && prevFocus.focus && prevFocus.focus(); };
+  // the phone's Back button closes the sheet instead of leaving the screen behind it
+  if (sheetPop) removeEventListener('popstate', sheetPop);
+  if (!(history.state && history.state.sheet)) { try { history.pushState({ ...(history.state || {}), sheet: 1 }, ''); } catch { } }
+  let closed = false;
+  const close = fromBack => {
+    if (closed) return; closed = true;
+    removeEventListener('popstate', onPop); if (sheetPop === onPop) sheetPop = null;
+    root.innerHTML = ''; document.removeEventListener('keydown', onKey); prevFocus && prevFocus.focus && prevFocus.focus();
+    if (fromBack !== true) { const href = location.href; setTimeout(() => { if (!sheetPop && location.href === href && history.state && history.state.sheet) history.back(); }, 0); }
+  };
+  const onPop = () => close(true);
+  addEventListener('popstate', onPop); sheetPop = onPop;
   const onKey = e => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
   root.querySelector('.sheet-bg').addEventListener('click', e => { if (e.target.classList.contains('sheet-bg')) close(); });

@@ -65,7 +65,7 @@ export function render(el) {
       <li>${ic('bank')}<span>Stashwise לא מבקשת סיסמאות של הבנק או של האשראי, אף פעם. את הקבצים אתה מוריד בעצמך.</span></li>
     </ul>
     <div class="field"><label for="rem">כניסה לאפליקציה</label><select id="rem">
-      <option value="1" ${session.remembered ? 'selected' : ''}>בלי קוד במכשיר הזה (מומלץ לטלפון אישי)</option>
+      <option value="1" ${session.remembered ? 'selected' : ''}>בלי קוד במכשיר הזה</option>
       <option value="0" ${session.remembered ? '' : 'selected'}>לבקש קוד בכל פתיחה</option></select></div>
     <p class="hint" id="persist-line">${ic('check')} הנתונים נשמרים במכשיר עד שתמחק אותם בעצמך.</p>
     <div class="row2">

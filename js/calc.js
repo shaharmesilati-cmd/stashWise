@@ -101,20 +101,31 @@ export function monthSummary(settings, allTx, key, today = new Date()) {
     const firstIso = inPeriod.filter(t => t.kind !== 'income').reduce((m, t) => (t.date < m ? t.date : m), lastIso);
     skipDays = Math.max(0, Math.min(elapsed - 1, Math.round((new Date(firstIso + 'T12:00') - new Date(startIso + 'T12:00')) / DAY)));
   }
-  const untracked = available > 0 ? available * skipDays / total : 0;
+  // Days since the last recorded purchase. In the first month a gap of 3+ days usually means the list is not complete
+  // yet (a screenshot covers a few days), so those days are not counted as "saved" either.
+  const isCur = elapsed > 0 && daysLeft > 0;
+  const exps = inPeriod.filter(t => t.kind !== 'income' && !t.ignored).map(t => t.date).sort();
+  const todayIso = isoOf(t0);
+  const lastExp = exps.filter(d => d <= todayIso).pop() || null;
+  const gapDays = isCur && lastExp ? Math.max(0, Math.round((t0 - new Date(lastExp + 'T00:00')) / DAY) - 1) : 0;
+  let tailFrom = 0, tailDays = 0;
+  if (!hasHistory && !settings.fullMonth && isCur && lastExp && gapDays >= 3) {
+    tailDays = gapDays; tailFrom = elapsed - gapDays; // day numbers tailFrom .. elapsed-1
+  }
+  const untracked = available > 0 ? available * (skipDays + tailDays) / total : 0;
   const remaining = available - untracked - spent - locked;
 
   const daily = daysLeft > 0 ? remaining / daysLeft : 0;
   const weekly = daysLeft >= 7 ? daily * 7 : remaining;
-  const expectedByNow = untracked + (available - untracked) * Math.max(0, elapsed - skipDays) / Math.max(1, total - skipDays);
+  const expectedByNow = untracked + (available - untracked) * Math.max(0, elapsed - skipDays - tailDays) / Math.max(1, total - skipDays - tailDays);
   const isCurrent = elapsed > 0 && daysLeft > 0;
   let status = 'good';
   if (remaining < 0) status = 'over';
   else if (isCurrent && available > 0 && spent > expectedByNow * 1.15 && spent - expectedByNow > 50) status = 'watch';
   // big one-off purchases (a quarter of the month's money or more) are not projected forward
   const oneOff = available > 0 ? variable.filter(t => t.amount >= available * 0.25).reduce((a, t) => a + t.amount, 0) : 0;
-  const tracked = elapsed - skipDays;
-  const projectedSpend = isCurrent && tracked >= 5 ? oneOff + (spent - oneOff) / tracked * (total - skipDays) : spent;
+  const tracked = elapsed - skipDays - tailDays;
+  const projectedSpend = isCurrent && tracked >= 5 ? oneOff + (spent - oneOff) / tracked * (total - skipDays - tailDays) : spent;
   const projectedEnd = available - untracked - projectedSpend - locked;
 
   const byCat = {};
@@ -128,7 +139,7 @@ export function monthSummary(settings, allTx, key, today = new Date()) {
 
   return {
     key, inPeriod, variable, plannedIncome, actualIncome, income, incomeSource: inc.source, incomeEstimate: inc.estimate, fixedTotal, savings, available, spent, remaining, locked, locks,
-    start, end, total, elapsed, daysLeft, skipDays, untracked, daily, weekly, expectedByNow, status, isCurrent, projectedEnd,
+    start, end, total, elapsed, daysLeft, skipDays, tailFrom, tailDays, gapDays, untracked, daily, weekly, expectedByNow, status, isCurrent, projectedEnd,
     byCat, allocated, unallocated: available - allocated, fixedSeen, refunded, refundCount: back.length,
   };
 }
@@ -163,6 +174,7 @@ export function dailyBank(settings, allTx, key, today = new Date()) {
   const days = []; let saved = 0, daily = base0, zeroDays = 0;
   for (let i = 1 + C.skipDays; i <= C.elapsed; i++) {
     const iso = isoOf(new Date(C.start.getFullYear(), C.start.getMonth(), C.start.getDate() + i - 1));
+    if (C.tailDays && i >= C.tailFrom && i < C.elapsed) continue; // not recorded yet: neither saved nor spent
     const spent = byDay[iso] || 0, locked = byLock[iso] || 0, out = spent + locked;
     const allow = daily + saved;
     days.push({ iso, spent: r2(spent), locked: r2(locked), daily: r2(daily), saved: r2(saved), allow: r2(allow), left: r2(allow - out) });
