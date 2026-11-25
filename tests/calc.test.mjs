@@ -500,3 +500,31 @@ console.log('v1.2 tests passed');
   assert.equal(C.skipDays, 0); assert.equal(C.remaining, 3000);
   console.log('v3.7 new user mid-month tests passed');
 }
+
+// v3.8 - a misread date must never become an amount and shift the whole list (the 25.11 bug)
+{
+  const { parseStatement, repairDate, looksLikeDate } = await import('../js/paste.js');
+  const { pickReading } = await import('../js/ocr.js');
+  const today = new Date(2026, 10, 25, 18);
+  const want = 'דודו:60:11-24|ארגון:200:11-24|העברה:65:11-23|ארגון:99:11-23|לאסט:179:11-22|רעננה:18:11-21';
+  const shot = d => `3315 CARD FLY\nעסקאות למועד חיוב קרוב\nדודו בר ויין 60.00\n24.11.26\nארגון בוגרי קורס חוב 200.00\n${d}\nהעברה בBIT 65.00\n23.11.26\nארגון בוגרי קורס חוב 99.00\n23.11.26\nלאסט פרייס בע"מ -סופ 179.00\n22.11.26\nרעננה BTW 18.00\n21.11.26`;
+  const sig = rows => rows.map(r => `${r.merchant.split(' ')[0]}:${r.amount}:${r.date.slice(5)}`).join('|');
+  for (const d of ['24.11.26', '2411.26', '24.1126', '241126', '24,11.26', '24.11,26']) {
+    const rows = parseStatement(shot(d), today).rows;
+    assert.equal(sig(rows), want, 'date read as ' + d);
+    assert.ok(rows.every(r => !r.dateGuessed), 'every date found when read as ' + d);
+  }
+  // a stray number from a misread time or status line does not shift the amounts either
+  assert.equal(sig(parseStatement(shot('24.11.26').replace('\n23.11.26\nארגון', '\n23.11.26\n7.50\nארגון'), today).rows), want);
+  assert.equal(repairDate('2411.26', today), '24.11.26'); assert.equal(repairDate('3511.26', today), '3511.26', 'not a real date');
+  assert.equal(repairDate('1250.00', today), '1250.00', 'a real amount is left alone');
+  assert.equal(looksLikeDate('2411.26', today), true); assert.equal(looksLikeDate('₪2,411.26', today), true); assert.equal(looksLikeDate('412.98', today), false);
+  // a date-shaped amount on a shop line is flagged for checking
+  assert.equal(parseStatement('העברה בזום 2411.26\n24.11.26', today).rows[0].suspect, true);
+  // the sharper digits reading may not erase a separator the first reading had
+  assert.equal(pickReading('24.11.26', '2411.26'), '24.11.26');
+  assert.equal(pickReading('18:24', '1824'), '18:24');
+  assert.equal(pickReading('₪65.00', '6500'), '₪65.00');
+  assert.equal(pickReading('2A.11.26', '24.11.26'), '24.11.26', 'a better reading is still taken');
+  console.log('v3.8 misread date tests passed');
+}

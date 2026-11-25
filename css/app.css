@@ -719,3 +719,4 @@ button.ring-wrap:active { transform: scale(.98); }
 .lock-form .link-btn { align-self: center; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
 .card.welcome { display: block; text-align: start; }
 .card.welcome .wsteps { width: 100%; align-self: stretch; }
+.chip.bad-soft { background: #FFE9E0; color: #B4401A; font-weight: 700; }

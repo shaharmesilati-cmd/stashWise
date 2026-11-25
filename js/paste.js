@@ -37,6 +37,24 @@ function dateFrom(m, today) {
 }
 const cleanName = s => s.replace(/₪|ש"ח|ש״ח|\bILS\b/g, ' ').replace(/[^֐-׿a-z0-9&'".\- ]/gi, ' ').replace(/\s+/g, ' ').replace(/^[\s\-.]+|[\s\-.]+$/g, '').trim();
 
+const yy = today => today.getFullYear() % 100;
+const okDate = (d, m, y, today) => d >= 1 && d <= 31 && m >= 1 && m <= 12 && (y == null || Math.abs(y - yy(today)) <= 1);
+/** "2411.26", "24.1126", "241126", "24,11.26" alone on a line -> "24.11.26". Anything else is left as it was. */
+export function repairDate(line, today = new Date()) {
+  if (/[A-Za-z֐-׿₪]/.test(line)) return line;
+  const t = line.trim(); let m;
+  if ((m = t.match(/^(\d{1,2})[.,](\d{1,2})[.,](\d{2})$/)) && okDate(+m[1], +m[2], +m[3], today)) return `${m[1]}.${m[2]}.${m[3]}`;
+  if ((m = t.match(/^(\d{2})(\d{2})[.,](\d{2})$/)) && okDate(+m[1], +m[2], +m[3], today)) return `${m[1]}.${m[2]}.${m[3]}`;
+  if ((m = t.match(/^(\d{1,2})[.,](\d{2})(\d{2})$/)) && okDate(+m[1], +m[2], +m[3], today)) return `${m[1]}.${m[2]}.${m[3]}`;
+  if ((m = t.match(/^(\d{2})(\d{2})(\d{2})$/)) && okDate(+m[1], +m[2], +m[3], today)) return `${m[1]}.${m[2]}.${m[3]}`;
+  return line;
+}
+/** An amount that is really a date read without its dots (2411.26 = 24.11.26): shown for checking, not saved by itself. */
+export function looksLikeDate(raw, today = new Date()) {
+  const m = String(raw || '').replace(/[₪\s,]/g, '').match(/^(\d{1,2})(\d{2})\.(\d{2})$/);
+  return !!m && okDate(+m[1], +m[2], +m[3], today);
+}
+
 /** Returns { rows, removed } - rows are purchases, removed is the number of sensitive items that were wiped. */
 export function parseStatement(text, today = new Date()) {
   const { text: safe, removed } = redactSensitive(text);
@@ -64,6 +82,7 @@ export function parseStatement(text, today = new Date()) {
       if (!/\d/.test(line) && (!seenAmount || CARDWORD.test(line))) continue;
     }
     if (!line) continue;
+    line = repairDate(line, today);
     let rest = line;
     const inst = rest.match(INST);
     if (inst) rest = rest.replace(inst[0], ' ');
@@ -93,11 +112,16 @@ export function parseStatement(text, today = new Date()) {
       const n = toAmount(a);
       if (n !== null && Math.abs(n) >= 0.5 && Math.abs(n) < 200000) {
         seenAmount = true;
-        tokens.push({ t: 'amount', v: Math.abs(n) * (/-/.test(a) || /זיכוי|החזר/.test(line) ? -1 : 1), fx: /\$|€|£|USD|EUR|GBP|דולר|יורו/.test(line), inc });
+        tokens.push({ t: 'amount', v: Math.abs(n) * (/-/.test(a) || /זיכוי|החזר/.test(line) ? -1 : 1), fx: /\$|€|£|USD|EUR|GBP|דולר|יורו/.test(line), inc, solo: !isName, raw: a, shekel: /₪|ש"ח|ש״ח/.test(a) });
         seenContent = true;
       }
     }
   }
+  // In a card-app screenshot the amount always sits on the same line as the shop name. When almost every row looks
+  // like that, a number standing alone on a line is a misread (a date, a time), and taking it as an amount would
+  // shift every amount after it to the wrong shop. So it is left out.
+  const paired = tokens.filter(k => k.t === 'amount' && !k.solo).length, soloN = tokens.filter(k => k.t === 'amount' && k.solo).length;
+  if (paired >= 3 && soloN && paired >= soloN * 3) for (let i = tokens.length - 1; i >= 0; i--) if (tokens[i].t === 'amount' && tokens[i].solo && !tokens[i].shekel) tokens.splice(i, 1);
   // group tokens into rows: a row closes when a slot that is already filled appears again
   const rows = []; let cur = {}, lastDate = null, card = null, firstCard = null;
   const close = () => { if (cur.amount !== undefined && cur.name) rows.push({ ...cur, card: cur.card || card }); cur = {}; };
@@ -105,7 +129,7 @@ export function parseStatement(text, today = new Date()) {
     if (k.t === 'cardctx') { if (cur.name && cur.amount !== undefined) close(); card = k.v; firstCard = firstCard || k.v; continue; }
     if (k.t === 'line') { if (cur.name && cur.amount !== undefined) close(); continue; }
     if (cur[k.t] !== undefined) close();
-    if (k.t === 'amount') { cur.amount = k.v; cur.fx = k.fx; cur.inc = k.inc; } else cur[k.t] = k.v;
+    if (k.t === 'amount') { cur.amount = k.v; cur.fx = k.fx; cur.inc = k.inc; cur.raw = k.raw; } else cur[k.t] = k.v;
   }
   close();
   return {
@@ -113,7 +137,8 @@ export function parseStatement(text, today = new Date()) {
     rows: rows.map(r => {
       if (r.date) lastDate = r.date;
       return { card: r.card || firstCard || null, date: r.date || lastDate || isoOf(today), time: r.time || null, merchant: r.name, place: placeOf(r.name), amount: r.amount,
-        installment: r.inst || null, foreign: !!r.fx, kind: r.inc ? 'income' : undefined, amount: r.inc ? Math.abs(r.amount) : r.amount, dateGuessed: !r.date };
+        installment: r.inst || null, foreign: !!r.fx, kind: r.inc ? 'income' : undefined, amount: r.inc ? Math.abs(r.amount) : r.amount, dateGuessed: !r.date,
+        suspect: looksLikeDate(r.raw, today) };
     }),
   };
 }

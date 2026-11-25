@@ -5,6 +5,21 @@ import { parseTsv, needsDigits, buildLines } from './ocrlayout.js';
 
 let worker = null, digits = null, loading = null;
 
+// The digits-only second reading is sharper, but it sometimes drops a dot ("24.11.26" -> "2411.26") or a digit.
+// Keep it only when it does not break a shape the first reading already had right.
+const DATE_SHAPE = /^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/, TIME_SHAPE = /^\d{1,2}:\d{2}$/, MONEY_SHAPE = /^₪?-?\d{1,3}(?:,\d{3})*\.\d{2}₪?$/;
+export function pickReading(first, second) {
+  const f = String(first || '').replace(/\s+/g, ''), s = String(second || '');
+  if (!s) return first;
+  for (const shape of [DATE_SHAPE, TIME_SHAPE]) if (shape.test(f) && !shape.test(s)) return f;
+  const dig = x => x.replace(/\D/g, '');
+  // same digits with fewer separators = a separator was lost
+  if (dig(f) === dig(s) && (f.match(/[.,:/]/g) || []).length > (s.match(/[.,:/]/g) || []).length) return f;
+  // a money amount that lost its decimal point keeps the first reading
+  if (MONEY_SHAPE.test(f.replace(/^0(?=\d)/, '₪')) && !/[.,]/.test(s)) return f;
+  return s;
+}
+
 function loadScript(src) {
   return new Promise((res, rej) => {
     if (document.querySelector(`script[data-src="${src}"]`)) return res();
@@ -72,7 +87,7 @@ export async function readImage(file, onStatus) {
       try {
         const r = await digits.recognize(crop, {}, { text: true, blocks: false, hocr: false, tsv: false });
         const t = (r.data.text || '').replace(/\s+/g, '');
-        if (t) b.text = t;
+        if (t) b.text = pickReading(b.text, t);
       } catch { } finally { wipeCanvas(crop); }
       onStatus && onStatus(null, 0.3 + 0.7 * ((i + 1) / redo.length));
     }

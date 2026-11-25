@@ -357,7 +357,7 @@ function toRow(x, source) {
   const cls = isPlaceholder(merchant) ? { cat: 'other', conf: 0, why: 'pending' } : classify(merchant, { rules: S.rules, ids, cats: S.categories, history: HIST || (HIST = historyOf(state.tx)) });
   return { id: uid(), card: /^\d{4}$/.test(x.card || '') ? x.card : (review0card || null), date: x.date, time: x.time || null, merchant, place: x.place || placeOf(merchant), amount: x.amount, kind,
     category: cls.conf >= AUTO ? cls.cat : 'other', auto: cls.conf >= AUTO && cls.why !== 'rule' ? cls.why : null, installment: x.installment || null, foreign: !!x.foreign,
-    note: cleanField(x.note, 120), fixedId: fx ? fx.id : null, on: true, dup: null, guessed: !!x.dateGuessed, dateGuessed: !!x.dateGuessed, origDate: x.date, chargeDate: x.chargeDate || null, pending: isPlaceholder(merchant) };
+    note: cleanField(x.note, 120), fixedId: fx ? fx.id : null, on: !x.suspect, suspect: x.suspect ? 'date' : null, dup: null, guessed: !!x.dateGuessed, dateGuessed: !!x.dateGuessed, origDate: x.date, chargeDate: x.chargeDate || null, pending: isPlaceholder(merchant) };
 }
 let HIST = null;
 function buildReview(groupsRaw, source) {
@@ -365,6 +365,10 @@ function buildReview(groupsRaw, source) {
   const groups = groupsRaw.map((g, gi) => g.map(x => ({ ...toRow(x, source), g: gi })));
   const rows = markDuplicates(groups, state.tx.filter(t => !t.ignored));
   rows.forEach(r => { if (r.dup) r.on = false; });
+  // an amount far above the others in the same upload is shown for checking (it stays ticked)
+  const am = rows.filter(r => r.kind === 'expense' && r.amount > 0).map(r => r.amount).sort((a, b) => a - b);
+  const med = am.length ? am[Math.floor(am.length / 2)] : 0;
+  if (am.length >= 5) rows.forEach(r => { if (!r.suspect && r.kind === 'expense' && r.amount >= 1000 && r.amount > med * 8) r.suspect = 'big'; });
   rows.sort((a, b) => a.g - b.g || (b.date + (b.time || '')).localeCompare(a.date + (a.time || '')));
   // purchases already saved without a card (or with another card) get the card this screenshot shows
   const fixes = rows.filter(r => r.dup === 'saved' && savedFix(r)).length;
@@ -413,7 +417,7 @@ function renderReview(el) {
         <div class="rev-meta">${ic('calendar')}<span>${shortDate(r.date)}${r.time ? ' · ' + esc(r.time) : ''}</span>${r.place ? `<span>· ${esc(r.place)}</span>` : ''}${r.card ? `<span class="chip">${ic('card')}${esc(r.card)}</span>` : ''}
           ${r.dup ? `<span class="chip warn">${r.dup === 'saved' ? 'כבר שמורה' : 'בצילום אחר'}</span>` : ''}
           ${r.fixedId ? `<span class="chip lilac">${ic('lock')}קבועה</span>` : ''}${r.kind === 'card-payment' ? `<span class="chip">${ic('card')}חיוב האשראי - לא נספר</span>` : ''}${r.kind === 'income' ? `<span class="chip good">הכנסה</span>` : ''}${r.kind === 'expense' && r.category === 'refund' ? `<span class="chip back">${ic('arrow-u-up-left')}חזר · לא נספר</span>` : ''}${r.pending ? `<span class="chip">${ic('info')}טרם נקלט - השם יתעדכן בצילום הבא</span>` : r.kind === 'expense' && r.category === 'other' ? `<span class="chip warn">${ic('question')}בחר קטגוריה</span>` : r.auto ? `<span class="chip good">${ic('sparkle')}סווג לבד</span>` : ''}${r.installment ? `<span class="chip">תשלום ${esc(r.installment)}</span>` : ''}
-          ${r.foreign ? `<span class="chip peach">מט"ח</span>` : ''}${r.guessed ? `<span class="chip warn">בדוק תאריך</span>` : ''}${r.amount < 0 ? `<span class="chip good">זיכוי</span>` : ''}</div>
+          ${r.foreign ? `<span class="chip peach">מט"ח</span>` : ''}${r.suspect ? `<span class="chip bad-soft">${ic('warning')}בדוק סכום</span>` : ''}${r.guessed ? `<span class="chip warn">בדוק תאריך</span>` : ''}${r.amount < 0 ? `<span class="chip good">זיכוי</span>` : ''}</div>
         <div class="rev-cat" ${r.kind === 'expense' ? '' : 'hidden'}><select data-k="category" aria-label="קטגוריה">${catOptions(r.category)}</select></div>
         <details class="rev-edit"><summary>${ic('pencil')}תיקון</summary><div class="rev-f">
           <div class="field wide"><label for="rv-m-${i}">שם</label><input id="rv-m-${i}" type="text" data-k="merchant" value="${esc(r.merchant)}"></div>
